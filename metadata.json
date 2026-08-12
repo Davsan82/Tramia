@@ -1,0 +1,8 @@
+{
+  "name": "Remix: TramIA v4.0",
+  "description": "Copiloto de burocracia con IA para simplificar y acelerar tus trámites en Perú.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
