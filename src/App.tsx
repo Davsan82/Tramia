@@ -6,6 +6,7 @@ import AboutView from './components/AboutView';
 import TermsView from './components/TermsView';
 import ContactView from './components/ContactView';
 import EmailVerificationView from './components/EmailVerificationView';
+import PasswordResetView from './components/PasswordResetView';
 import CatalogView from './components/CatalogView';
 import PanelView from './components/PanelView';
 import SearchView from './components/SearchView';
@@ -38,8 +39,8 @@ export default function App() {
 
   // Multi-level secondary tabs / navigation nested inside 'inicio' tab:
   // 'home' | 'search' | 'detail' | 'workspace'
-  type InicioView = 'home' | 'catalog' | 'search' | 'detail' | 'workspace' | 'privacy' | 'about' | 'terms' | 'contact' | 'verifyEmail';
-  const initialInstitutionalView = (): InicioView => ({ '/tramites': 'catalog', '/privacidad': 'privacy', '/sobre-tramia': 'about', '/terminos': 'terms', '/contacto': 'contact', '/verificar-correo': 'verifyEmail' }[window.location.pathname] as InicioView || 'home');
+  type InicioView = 'home' | 'catalog' | 'search' | 'detail' | 'workspace' | 'privacy' | 'about' | 'terms' | 'contact' | 'verifyEmail' | 'resetPassword';
+  const initialInstitutionalView = (): InicioView => ({ '/tramites': 'catalog', '/privacidad': 'privacy', '/sobre-tramia': 'about', '/terminos': 'terms', '/contacto': 'contact', '/verificar-correo': 'verifyEmail', '/restablecer-contrasena': 'resetPassword' }[window.location.pathname] as InicioView || 'home');
   const [inicioSubView, setInicioSubView] = useState<InicioView>(initialInstitutionalView);
   const detailReturnRef = useRef<{ tab: typeof currentTab; view: InicioView; path: string; scrollY: number }>({ tab: 'inicio', view: 'catalog', path: '/tramites', scrollY: 0 });
   const openInstitutional = (view: Extract<InicioView, 'privacy' | 'about' | 'terms' | 'contact'>) => { const path = { privacy: '/privacidad', about: '/sobre-tramia', terms: '/terminos', contact: '/contacto' }[view]; window.history.pushState({}, '', path); setInicioSubView(view); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -102,11 +103,12 @@ export default function App() {
 
   // Profile authenticated state manager (starts on Login / Create Profile mode)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [serverActiveProcedureCount, setServerActiveProcedureCount] = useState(0);
   const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(15 * 60);
 
   const logout = async () => {
     await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
-    setUserProfile(null); setCurrentTab('inicio'); setInicioSubView('home'); setSessionRemainingSeconds(15 * 60);
+    setUserProfile(null); setServerActiveProcedureCount(0); setCurrentTab('inicio'); setInicioSubView('home'); setSessionRemainingSeconds(15 * 60);
     window.history.replaceState({}, '', '/');
   };
 
@@ -133,7 +135,7 @@ export default function App() {
 
   // Auth modal visibility and callback state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'signup'>('login');
+  const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | null>(null);
 
   // Helper trigger to auto-dismiss toasts
@@ -592,6 +594,10 @@ export default function App() {
             {inicioSubView === 'terms' && <TermsView onBack={closeInstitutional} />}
             {inicioSubView === 'contact' && <ContactView onBack={closeInstitutional} />}
             {inicioSubView === 'verifyEmail' && <EmailVerificationView onOpenProfile={() => { window.history.replaceState({}, '', '/'); setCurrentTab(userProfile ? 'perfil' : 'inicio'); setInicioSubView('home'); if (!userProfile) handleTriggerLogin('login'); }} onLogin={() => handleTriggerLogin('login')} />}
+            {inicioSubView === 'resetPassword' && <PasswordResetView
+              onLogin={() => { window.history.replaceState({}, '', '/'); setInicioSubView('home'); setAuthModalInitialMode('login'); setIsAuthModalOpen(true); }}
+              onRequestNew={() => { window.history.replaceState({}, '', '/'); setInicioSubView('home'); setAuthModalInitialMode('forgot'); setIsAuthModalOpen(true); }}
+            />}
             {inicioSubView === 'catalog' && <CatalogView procedures={procedures} userProfile={userProfile} onBack={closeInstitutional} onSelectProcedure={handleSelectProcedure} onCreateAccount={()=>handleTriggerLogin('signup')} onLogin={()=>handleTriggerLogin('login')} initialQuery={searchText} initialCategory={catalogCategory} />}
 
             {inicioSubView === 'search' && (
@@ -681,6 +687,7 @@ export default function App() {
             ) : (
               <MyProceduresView
                 onOpenProcedure={handleSelectProcedureById}
+                onSummaryChange={(summary) => setServerActiveProcedureCount(summary.activeCount)}
                 onExplore={() => {
                   setCurrentTab('inicio');
                   setInicioSubView('catalog');
@@ -785,7 +792,7 @@ export default function App() {
             setInicioSubView(view);
             if (view === 'home') window.history.replaceState({}, '', '/');
           }}
-          activeCount={inProgressProcedures.length}
+          activeCount={userProfile ? serverActiveProcedureCount : 0}
           onLogout={logout}
           sessionRemainingSeconds={sessionRemainingSeconds}
         />
@@ -814,7 +821,7 @@ export default function App() {
         )}
 
         {/* Dynamic content canvas area */}
-        <main className={`flex-1 w-full mx-auto ${currentTab === 'inicio' && ['home','catalog','privacy','about','terms','contact','verifyEmail'].includes(inicioSubView) ? 'max-w-none p-0' : 'max-w-6xl p-4 pb-8 sm:p-6 lg:p-8 space-y-8'}`}>
+        <main className={`flex-1 w-full mx-auto ${currentTab === 'inicio' && ['home','catalog','privacy','about','terms','contact','verifyEmail','resetPassword'].includes(inicioSubView) ? 'max-w-none p-0' : 'max-w-6xl p-4 pb-8 sm:p-6 lg:p-8 space-y-8'}`}>
           {renderActiveTabContent()}
         </main>
       </div>

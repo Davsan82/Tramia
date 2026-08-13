@@ -4,8 +4,8 @@ import type { UserProfile } from '../types';
 import TramIALogo from './TramIALogo';
 import { trackEvent } from '../utils/analytics';
 
-interface LoginViewProps { onAuthSuccess: (profile: UserProfile) => void; onClose?: () => void; initialMode?: 'login' | 'signup'; }
 type Mode = 'login' | 'signup' | 'forgot';
+interface LoginViewProps { onAuthSuccess: (profile: UserProfile) => void; onClose?: () => void; initialMode?: Mode; }
 
 export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login' }: LoginViewProps) {
   const [mode, setMode] = useState<Mode>(initialMode);

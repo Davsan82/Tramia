@@ -7,7 +7,7 @@ import { openApiDocument } from './server/openapi';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { getDrizzleDatabase } from './server/db/client';
-import { advisorAssignments, advisorProfiles, authSessions, contactMessages, delegationRequests, procedureCategories, procedures, ratings, userProcedures, userProfiles, users } from './server/db/schema';
+import { advisorAssignments, advisorProfiles, authSessions, authTokens, contactMessages, delegationRequests, procedureCategories, procedures, ratings, userProcedures, userProfiles, users } from './server/db/schema';
 import { SESSION_COOKIE, consumeAuthToken, createSession, encryptPrivateValue, findSession, findUserByIdentifier, hashPassword, inspectAuthToken, issueAuthToken, parseCookie, sendAccountEmail, sendContactEmail, tokenHash, verifyPassword } from './server/services/auth';
 
 export const app = express();
@@ -81,6 +81,32 @@ app.post('/api/v1/auth/forgot-password', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase(); const user = await findUserByIdentifier(email);
   if (user && user.email.toLowerCase() === email) { const token = await issueAuthToken(user.id, 'reset_password', 30); await sendAccountEmail(user.email, 'Restablece tu contraseña de TramIA', `/restablecer-contrasena?token=${encodeURIComponent(token)}`); }
   res.json({ message: 'Si el correo está registrado, enviaremos las instrucciones.' });
+});
+
+app.get('/api/v1/auth/reset-password/status', async (req, res) => {
+  const inspection = await inspectAuthToken(String(req.query.token || ''), 'reset_password');
+  if (inspection.status === 'valid') return res.json({ valid: true, expiresAt: inspection.token.expiresAt });
+  if (inspection.status === 'expired') return res.status(410).json({ error: 'expired_token', message: 'Este enlace venció. Solicita uno nuevo desde Recupera tu acceso.' });
+  if (inspection.status === 'consumed') return res.status(409).json({ error: 'used_token', message: 'Este enlace ya fue utilizado. Si necesitas cambiar nuevamente tu contraseña, solicita otro.' });
+  return res.status(400).json({ error: 'invalid_token', message: 'Este enlace no es válido o está incompleto.' });
+});
+
+app.post('/api/v1/auth/reset-password', async (req, res) => {
+  const raw = String(req.body.token || '');
+  const password = String(req.body.password || '');
+  if (password.length < 8) return res.status(400).json({ error: 'weak_password', message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+  const inspection = await inspectAuthToken(raw, 'reset_password');
+  if (inspection.status === 'expired') return res.status(410).json({ error: 'expired_token', message: 'Este enlace venció. Solicita uno nuevo.' });
+  if (inspection.status === 'consumed') return res.status(409).json({ error: 'used_token', message: 'Este enlace ya fue utilizado.' });
+  if (inspection.status !== 'valid') return res.status(400).json({ error: 'invalid_token', message: 'Este enlace no es válido.' });
+  const token = await consumeAuthToken(raw, 'reset_password');
+  if (!token) return res.status(409).json({ error: 'token_already_processed', message: 'El enlace ya fue procesado.' });
+  const db = getDrizzleDatabase();
+  await db.update(users).set({ passwordHash: await hashPassword(password), updatedAt: new Date() }).where(eq(users.id, token.userId));
+  await db.delete(authSessions).where(eq(authSessions.userId, token.userId));
+  await db.delete(authTokens).where(and(eq(authTokens.userId, token.userId), eq(authTokens.purpose, 'reset_password')));
+  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  return res.json({ changed: true, message: 'Tu contraseña fue actualizada. Ya puedes iniciar sesión con tu nueva clave.' });
 });
 
 app.post('/api/v1/auth/verify-email', async (req, res) => {

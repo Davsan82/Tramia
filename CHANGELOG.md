@@ -7,9 +7,23 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-12
+
 ### Added
 
-- Base inicial para futuras funcionalidades.
+- Flujo seguro de recuperación de acceso mediante correo y enlace de un solo uso.
+- Pantalla responsive para crear y confirmar una nueva contraseña.
+- Validación de enlaces vigentes, vencidos, utilizados o inválidos.
+
+### Changed
+
+- Las sesiones abiertas se cierran después de cambiar la contraseña.
+- Los enlaces anteriores de recuperación quedan invalidados al completar el cambio.
+- El contador de "Mis trámites" ahora utiliza el valor real de Neon para el usuario autenticado.
+
+### Fixed
+
+- Eliminado el conteo incorrecto de trámites demo almacenados localmente en la cabecera.
 
 ## [0.1.0] - 2026-08-12
 
@@ -24,5 +38,6 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/OWNER/REPOSITORY/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/REPOSITORY/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Davsan82/Tramia/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Davsan82/Tramia/releases/tag/v0.1.0

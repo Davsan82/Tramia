@@ -13,11 +13,12 @@ const emptySummary: Summary = { activeCount: 0, completedCount: 0, delegatedComp
 const statusLabel: Record<string, string> = { draft:'Por iniciar', active:'Activo', waiting_user:'Necesita tu atención', eligible_for_delegation:'Listo para delegar', waiting_payment:'Pago pendiente', waiting_assignment:'Buscando asesor', delegated:'Delegado', in_progress:'En proceso', paused:'Pausado', completed:'Completado', cancelled:'Cancelado', rejected:'No aprobado' };
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('es-PE', { day:'2-digit', month:'short', year:'numeric' }).format(new Date(value)) : 'Sin fecha';
 
-export default function MyProceduresView({ onOpenProcedure, onExplore }: { onOpenProcedure:(id:string)=>void; onExplore:()=>void }) {
+export default function MyProceduresView({ onOpenProcedure, onExplore, onSummaryChange }: { onOpenProcedure:(id:string)=>void; onExplore:()=>void; onSummaryChange?:(summary:Summary)=>void }) {
   const [active, setActive] = useState<ProcedureItem[]>([]), [history, setHistory] = useState<ProcedureItem[]>([]), [summary, setSummary] = useState<Summary>(emptySummary);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [ratingItem, setRatingItem] = useState<ProcedureItem|null>(null);
   const load = useCallback(async () => { setLoading(true); setError(''); try { const response=await fetch('/api/v1/my-procedures',{credentials:'include'}); const contentType=response.headers.get('content-type')||''; if(!contentType.includes('application/json')) throw new Error('El servidor local necesita reiniciarse para habilitar esta sección.'); const payload=await response.json(); if(!response.ok) throw new Error(payload.message||'No pudimos cargar tus trámites.'); setActive(payload.data.active||[]); setHistory(payload.data.history||[]); setSummary(payload.summary||emptySummary); } catch(e) { setError(e instanceof Error?e.message:'No pudimos cargar tus trámites.'); } finally { setLoading(false); } },[]);
   useEffect(()=>{void load()},[load]);
+  useEffect(()=>{onSummaryChange?.(summary)},[summary,onSummaryChange]);
   const level = useMemo(()=> summary.completedCount >= 10 ? 3 : summary.completedCount >= 3 ? 2 : 1,[summary.completedCount]);
   const nextGoal = level===1?3:level===2?10:25, achievementProgress=Math.min(100,(summary.completedCount/nextGoal)*100);
   const medals = [
