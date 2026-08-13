@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Award, CalendarDays, CheckCircle2, Clock3, CreditCard, FileText, Medal, RefreshCw, ShieldCheck, Sparkles, Star, Trophy, UserRoundCheck, X } from 'lucide-react';
 import CaseDocuments from './CaseDocuments';
 import CaseMessages from './CaseMessages';
+import DelegationModalV2 from './DelegationModalV2';
 
 type ProcedureItem = {
   id: string; procedureId: string; trackingCode: string; title: string; category: string;
@@ -55,7 +56,8 @@ export default function MyProceduresView({ onOpenProcedure, onExplore, onSummary
       {!loading&&history.length===0?<EmptyState icon={CheckCircle2} title="Tu historial está vacío" text="Cuando finalices o cierres un trámite, aparecerá aquí con su información."/>:<div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">{history.map(item=><article key={item.id} className="grid gap-4 border-b border-slate-100 p-5 last:border-0 md:grid-cols-[1fr_auto] md:items-center"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${item.status==='completed'?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600'}`}>{statusLabel[item.status]||item.status}</span><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{item.category}</span></div><h3 className="mt-2 font-black text-slate-950">{item.title}</h3><p className="mt-1 text-xs text-slate-500">{item.status==='completed'?`Completado: ${formatDate(item.completedAt)}`:`Última actualización: ${formatDate(item.updatedAt)}`} · {item.mode==='self_service'?'Autogestionado':'Gestión con asesor'}</p>{item.advisorName&&<p className="mt-2 text-xs font-bold text-blue-700">Asesor: {item.advisorName}</p>}</div><div className="flex flex-wrap gap-2 md:justify-end">{item.status==='completed'&&item.advisorId&&<button onClick={()=>setRatingItem(item)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800"><Star size={15} fill={item.userRating?'currentColor':'none'}/>{item.userRating?`${item.userRating}/5 · Editar`:'Calificar asesor'}</button>}<button onClick={()=>onOpenProcedure(item.procedureId)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 px-3 text-xs font-black text-blue-700">Ver detalle <ArrowRight size={14}/></button></div></article>)}</div>}
     </section>
     {ratingItem&&<RatingModal item={ratingItem} onClose={()=>setRatingItem(null)} onSaved={()=>{setRatingItem(null);void load()}}/>}
-    {delegationItem&&<DelegationModal item={delegationItem} onClose={()=>setDelegationItem(null)} onSaved={()=>{setDelegationItem(null);void load()}}/>}{toolsItem&&<CaseToolsModal item={toolsItem} onClose={()=>setToolsItem(null)}/>} 
+    {toolsItem&&<CaseToolsModal item={toolsItem} onClose={()=>setToolsItem(null)}/>}
+    {delegationItem&&<DelegationModalV2 item={delegationItem} onClose={()=>setDelegationItem(null)} onSaved={()=>{setDelegationItem(null);void load()}}/>}
   </div>;
 }
 

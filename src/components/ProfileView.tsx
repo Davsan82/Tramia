@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, BadgeCheck, Building2, CalendarDays, CheckCircle2, Fingerprint, LoaderCircle, MailCheck, MapPin, Phone, Save, Send, ShieldCheck, UserRound } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Building2, CalendarDays, CheckCircle2, CreditCard, Fingerprint, LoaderCircle, MailCheck, MapPin, Phone, Save, Send, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react';
 import { UserProfile } from '../types';
 import TramIALogo from './TramIALogo';
 import { Department, District, loadUbigeo, Province } from '../services/ubigeo';
@@ -12,12 +12,15 @@ export default function ProfileView({ profile, onUpdateProfile }: ProfileViewPro
   const [departments, setDepartments] = useState<Department[]>([]), [provinces, setProvinces] = useState<Province[]>([]), [districts, setDistricts] = useState<District[]>([]);
   const [identity, setIdentity] = useState({ document: '', birthDate: '' });
   const [saving, setSaving] = useState(false), [validating, setValidating] = useState(false), [sendingEmail, setSendingEmail] = useState(false);
-  const [contactNotice, setContactNotice] = useState<Notice>(null), [identityNotice, setIdentityNotice] = useState<Notice>(null), [emailNotice, setEmailNotice] = useState<Notice>(null);
+  const [contactNotice, setContactNotice] = useState<Notice>(null), [identityNotice, setIdentityNotice] = useState<Notice>(null), [emailNotice, setEmailNotice] = useState<Notice>(null),[methods,setMethods]=useState<any[]>([]),[uploading,setUploading]=useState(false);
   const isIdentityVerified = profile.identityVerificationStatus === 'verified';
 
   useEffect(() => setContact({ phone: profile.phone || '', address: profile.address || '', department: profile.department || '', province: profile.province || '', district: profile.district || '' }), [profile]);
   useEffect(() => { loadUbigeo().then((data) => { setDepartments(data.departments); setProvinces(data.provinces); setDistricts(data.districts); }).catch(() => setContactNotice({ type: 'error', text: 'No pudimos cargar el catálogo de ubicaciones.' })); }, []);
   const updateContact = (key: keyof typeof contact) => (event: React.ChangeEvent<HTMLInputElement>) => setContact((value) => ({ ...value, [key]: event.target.value }));
+  useEffect(()=>{fetch('/api/v1/payment-methods',{credentials:'include'}).then(r=>r.json()).then(p=>setMethods(p.methods||[])).catch(()=>{})},[]);
+  async function uploadAvatar(file?:File){if(!file)return;setUploading(true);const contentBase64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=reject;reader.readAsDataURL(file)});const response=await fetch('/api/v1/profile/avatar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({mimeType:file.type,contentBase64})}),result=await response.json().catch(()=>({}));if(response.ok)onUpdateProfile({...profile,avatarUrl:`${result.avatarUrl}?v=${Date.now()}`});else setIdentityNotice({type:'error',text:result.message||'No pudimos subir la foto.'});setUploading(false)}
+  async function addMethod(brand:string){const r=await fetch('/api/v1/payment-methods/simulated',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand})}),p=await r.json();if(r.ok)setMethods(v=>[p.data,...v])}
   const selectedDepartment = departments.find((item) => item.departamento === contact.department);
   const availableProvinces = provinces.filter((item) => item.departamento_id === selectedDepartment?.id);
   const selectedProvince = availableProvinces.find((item) => item.provincia === contact.province);
@@ -61,7 +64,7 @@ export default function ProfileView({ profile, onUpdateProfile }: ProfileViewPro
       <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] bg-size-[23px_23px]" />
       <div className="relative z-10 flex items-center justify-between gap-4">
         <div><TramIALogo iconSize={34} textSize="text-xl" variant="dark" /><p className="mt-5 text-xs font-black uppercase tracking-[.18em] text-cyan-200">Mi perfil TramIA</p><h1 className="mt-2 text-2xl font-black sm:text-3xl">Hola, {profile.fullName || profile.username}</h1><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">Completa tu cuenta y valida tu identidad para gestionar trámites con mayor seguridad.</p></div>
-        <img src="/assets/mascot/tramia-bot-guiding.png" alt="TramIA te ayuda a completar tu perfil" className="hidden h-40 w-40 object-contain drop-shadow-xl sm:block" />
+        <div className="flex flex-col items-center gap-2"><div className="relative"><img src={profile.avatarUrl||'/assets/mascot/tramia-bot-guiding.png'} alt="Foto de perfil" className="h-32 w-32 rounded-full border-4 border-white/30 object-cover drop-shadow-xl sm:h-40 sm:w-40"/>{isIdentityVerified&&<span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-black text-white shadow"><BadgeCheck className="mr-1 inline" size={13}/>ID verificado</span>}</div><label className="cursor-pointer rounded-xl bg-white/15 px-3 py-2 text-xs font-black backdrop-blur"><Upload className="mr-1 inline" size={14}/>{uploading?'Subiendo…':'Cambiar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e=>void uploadAvatar(e.target.files?.[0])}/></label></div>
       </div>
     </section>
 
@@ -100,6 +103,7 @@ export default function ProfileView({ profile, onUpdateProfile }: ProfileViewPro
       {!isIdentityVerified && <p className="mt-4 text-xs leading-5 text-slate-500">Los nombres, apellidos, sexo y fecha de nacimiento se completarán desde la fuente de identidad y ya no podrán editarse manualmente.</p>}
       <NoticeBox notice={identityNotice} />
     </section>
+    <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7"><SectionTitle icon={CreditCard} title="Medios de pago simulados" description="Tarjetas ficticias para probar pagos. Nunca guardamos PAN ni CVV reales."/><div className="mt-5 grid gap-3 sm:grid-cols-2">{methods.map(method=><article key={method.id} className="rounded-2xl bg-gradient-to-br from-slate-950 to-blue-800 p-5 text-white"><p className="text-xs font-black uppercase">{method.brand}</p><p className="mt-8 text-lg font-black tracking-[.2em]">•••• •••• •••• {method.lastFour}</p><div className="mt-4 flex justify-between text-xs"><span>{method.holderName}</span><span>{String(method.expiryMonth).padStart(2,'0')}/{method.expiryYear}</span></div></article>)}</div><div className="mt-5 flex flex-wrap gap-2">{['visa','mastercard','amex','diners'].map(brand=><button key={brand} onClick={()=>void addMethod(brand)} className="min-h-10 rounded-xl border border-blue-200 px-4 text-xs font-black uppercase text-blue-700">Crear {brand} ficticia</button>)}</div><p className="mt-4 text-xs text-slate-500">Los números completos y códigos de seguridad no se generan ni almacenan. Cada tarjeta usa un token interno no financiero.</p></section>
   </div>;
 }
 

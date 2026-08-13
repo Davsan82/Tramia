@@ -231,6 +231,7 @@ export const procedureSteps = pgTable('procedure_steps', {
   dateTrackingEnabled: boolean('date_tracking_enabled').notNull().default(false),
   reminderOffsets: text('reminder_offsets').array(),
   applicabilityRule: jsonb('applicability_rule').notNull().default({}),
+  actionConfig: jsonb('action_config').notNull().default({}),
   ...timestamps,
 }, (table) => [
   uniqueIndex('procedure_steps_position_uidx').on(table.procedureVersionId, table.position),
@@ -319,6 +320,8 @@ export const userProcedureSteps = pgTable('user_procedure_steps', {
   notes: text('notes'),
   dueAt: timestamp('due_at', { withTimezone: true }),
   lockedReason: text('locked_reason'),
+  completionData: jsonb('completion_data').notNull().default({}),
+  isFinalized: boolean('is_finalized').notNull().default(false),
   ...timestamps,
 }, (table) => [uniqueIndex('user_procedure_steps_uidx').on(table.userProcedureId, table.procedureStepId)]);
 
@@ -462,6 +465,29 @@ export const ratings = pgTable('ratings', {
   uniqueIndex('ratings_direction_uidx').on(table.userProcedureId, table.reviewerUserId, table.reviewedUserId),
   check('ratings_stars_check', sql`${table.rating} between 1 and 5`),
 ]);
+
+export const simulatedPaymentMethods = pgTable('simulated_payment_methods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  brand: varchar('brand', { length: 24 }).notNull(),
+  displayName: varchar('display_name', { length: 80 }).notNull(),
+  holderName: varchar('holder_name', { length: 180 }).notNull(),
+  token: varchar('token', { length: 80 }).notNull().unique(),
+  lastFour: varchar('last_four', { length: 4 }).notNull(),
+  expiryMonth: smallint('expiry_month').notNull(),
+  expiryYear: smallint('expiry_year').notNull(),
+  isDefault: boolean('is_default').notNull().default(false),
+  isActive: boolean('is_active').notNull().default(true),
+  ...timestamps,
+}, (table) => [index('simulated_payment_methods_user_idx').on(table.userId, table.isActive)]);
+
+export const appSettings = pgTable('app_settings', {
+  key: varchar('key', { length: 100 }).primaryKey(),
+  value: jsonb('value').notNull().default({}),
+  isPublic: boolean('is_public').notNull().default(false),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  ...timestamps,
+});
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -30,6 +30,11 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 
 ### Persistencia operativa
 
+- Fotos de perfil e identidad verificada para clientes y asesores.
+- Configuración pública editable para canales de atención.
+- Pasos accionables con fechas, formularios, archivos y cierre irreversible confirmado.
+- Medios de pago de prueba exclusivamente ficticios y tokenizados; no se almacena PAN ni CVV.
+
 - Inicio, checklist, avance, documentos y conversación de cada trámite mediante API y Neon.
 - Documentos binarios en Netlify Blobs; PostgreSQL conserva únicamente metadatos y claves.
 - Delegaciones, asignaciones y reasignaciones persistentes y auditadas.

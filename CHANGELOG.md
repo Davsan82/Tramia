@@ -7,6 +7,23 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-13
+
+### Added
+
+- Fotos de perfil para clientes y asesores con almacenamiento en Netlify Blobs.
+- Distintivo visible de identidad validada mediante PeruDevs.
+- Acceso administrativo diferenciado con paleta violeta de alto contraste.
+- Configuración centralizada de canales de atención y consumo público.
+- Reputación bilateral entre clientes y asesores.
+- Formularios accionables por etapa con confirmación y bloqueo definitivo.
+- Medios de pago completamente ficticios y tokenizados, sin PAN ni CVV.
+
+### Changed
+
+- Selector inicial renovado para autogestión o delegación.
+- Página de contacto conectada a la configuración administrativa.
+
 ## [0.3.0] - 2026-08-13
 
 ### Changed

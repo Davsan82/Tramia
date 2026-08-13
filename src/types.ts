@@ -90,6 +90,7 @@ export interface UserProfile {
   district?: string;
   isNew?: boolean;
   roles?: string[];
+  avatarUrl?: string;
 }
 
 export interface ActiveProcedure {

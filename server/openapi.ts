@@ -2,7 +2,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'TramIA API',
-    version: '0.1.0',
+    version: '0.4.0',
     description: 'API pública versionada para el catálogo y los futuros expedientes de TramIA.',
   },
   servers: [
@@ -16,8 +16,15 @@ export const openApiDocument = {
     { name: 'Documentos' },
     { name: 'Mensajería' },
     { name: 'Notificaciones' },
+    { name: 'Perfiles' },
+    { name: 'Configuración' },
+    { name: 'Pagos simulados' },
   ],
   paths: {
+    '/v1/payment-methods': { get:{tags:['Pagos simulados'],summary:'Listar medios de pago ficticios tokenizados',responses:{'200':{description:'Tarjetas simuladas sin PAN ni CVV'}}} },
+    '/v1/payment-methods/simulated': { post:{tags:['Pagos simulados'],summary:'Crear una tarjeta completamente ficticia',responses:{'201':{description:'Token simulado creado'}}} },
+    '/v1/profile/avatar': { post:{tags:['Perfiles'],summary:'Cargar foto de perfil',responses:{'200':{description:'Foto actualizada'}}} },
+    '/v1/public/settings': { get:{tags:['Configuración'],summary:'Consultar configuración pública del sitio',responses:{'200':{description:'Configuración pública'}}} },
     '/health': {
       get: {
         tags: ['Sistema'],

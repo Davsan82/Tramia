@@ -311,6 +311,11 @@ export default function WorkspaceView({
   // Navigation: Autogestionar vs Delegar
   const [isDelegated, setIsDelegated] = useState<boolean>(initialIsDelegated);
   const [isBotChatOpen, setIsBotChatOpen] = useState(false);
+  const [caseId,setCaseId]=useState<string>('');
+  const [actionStep,setActionStep]=useState<Step|null>(null);
+  const [actionData,setActionData]=useState<Record<string,string>>({});
+  useEffect(()=>{fetch(`/api/v1/my-procedures/by-procedure/${procedure.id}/workspace`,{credentials:'include'}).then(r=>r.json()).then(p=>setCaseId(p.instance?.id||'')).catch(()=>{})},[procedure.id]);
+  const completeAction=async()=>{if(!actionStep||!caseId)return;const response=await fetch(`/api/v1/my-procedures/${caseId}/steps/${actionStep.id}/complete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmCompleted:true,data:actionData})}),payload=await response.json().catch(()=>({}));if(!response.ok){alert(payload.message||'No pudimos completar la etapa.');return}setCompletedStepIds(value=>[...new Set([...value,actionStep.id])]);setActionStep(null);setActionData({})};
 
   // AI Document Validation Modal State
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
@@ -401,6 +406,7 @@ export default function WorkspaceView({
 
   // Toggle manual confirmation checkbox
   const toggleManualStep = (stepId: string) => {
+    const target=procedure.steps.find(step=>step.id===stepId);if(target&&!completedStepIds.includes(stepId)){setActionStep(target);return}
     setCompletedStepIds(prev => {
       let next: string[];
       if (prev.includes(stepId)) {
@@ -1382,6 +1388,7 @@ export default function WorkspaceView({
       )}
 
       {/* Document Validation Modal Integration */}
+      {actionStep&&<div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4"><form onSubmit={e=>{e.preventDefault();void completeAction()}} className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl"><p className="text-xs font-black uppercase tracking-widest text-blue-600">Completar etapa</p><h2 className="mt-2 text-2xl font-black">{actionStep.title}</h2><p className="mt-2 text-sm text-slate-500">{actionStep.description}</p><div className="mt-5 space-y-4">{actionStep.dateTrackingType&&<label className="block text-xs font-black">Selecciona la fecha<input type="date" required className="field-input mt-2" value={actionData.date||''} onChange={e=>setActionData({...actionData,date:e.target.value})}/></label>}<label className="block text-xs font-black">Información o referencia<textarea className="field-input mt-2 min-h-24" required value={actionData.notes||''} onChange={e=>setActionData({...actionData,notes:e.target.value})}/></label><label className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900"><input type="checkbox" required/>Marcar etapa como realizada. Al confirmar, quedará bloqueada y no se podrá modificar.</label></div><div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onClick={()=>setActionStep(null)} className="min-h-11 rounded-xl bg-slate-100 font-black">Cancelar</button><button className="min-h-11 rounded-xl bg-blue-600 font-black text-white">Guardar y completar</button></div></form></div>}
       <DocumentValidationModal
         isOpen={isValidationModalOpen}
         onClose={() => setIsValidationModalOpen(false)}

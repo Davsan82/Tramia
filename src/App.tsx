@@ -907,7 +907,7 @@ export default function App() {
       {/* Method Selection Modal Overlay */}
       {isMethodSelectionModalOpen && pendingProcedureToStart && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-slate-950 border border-slate-800 text-white rounded-3xl p-6 md:p-8 shadow-2xl animate-scaleIn space-y-6">
+          <div className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-6 text-slate-950 shadow-2xl animate-scaleIn space-y-6 md:p-8">
             
             {/* Close Button */}
             <button
@@ -915,7 +915,7 @@ export default function App() {
                 setIsMethodSelectionModalOpen(false);
                 setPendingProcedureToStart(null);
               }}
-              className="absolute right-6 top-6 z-50 p-2 bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-white rounded-full cursor-pointer transition-colors shadow-xs"
+              className="absolute right-6 top-6 z-50 p-2 bg-slate-100 text-slate-500 hover:text-blue-700 rounded-full cursor-pointer transition-colors shadow-xs"
               aria-label="Cerrar"
             >
               <X size={16} />
@@ -923,7 +923,7 @@ export default function App() {
 
             <div className="text-center space-y-2 max-w-lg mx-auto">
               <h3 className="text-lg md:text-xl font-black tracking-tight text-white">¿Cómo te gustaría completar este trámite?</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-slate-600 leading-relaxed">
                 Elige la modalidad de trabajo para que TramIA prepare tu asistencia en tiempo real.
               </p>
             </div>
@@ -931,7 +931,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 text-left">
               
               {/* Option 1: Do it myself */}
-              <div className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 flex flex-col justify-between space-y-5 transition-all">
+              <div className="rounded-3xl border border-blue-200 bg-blue-50/60 p-6 flex flex-col justify-between space-y-5 transition-all">
                 <div className="space-y-3">
                   <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl w-fit">
                     <UserCheck size={20} />
@@ -955,7 +955,7 @@ export default function App() {
               </div>
 
               {/* Option 2: Delegate to TramIA */}
-              <div className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 flex flex-col justify-between space-y-5 transition-all">
+              <div className="rounded-3xl border border-violet-200 bg-violet-50/60 p-6 flex flex-col justify-between space-y-5 transition-all">
                 <div className="space-y-3">
                   <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit">
                     <ShieldCheck size={20} />
