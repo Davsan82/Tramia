@@ -1,293 +1,111 @@
-import React, { useState, useEffect } from 'react';
-import { User, ShieldCheck, CreditCard, Bell, ShieldAlert, Sparkles, Key, CheckCircle2, QrCode } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, BadgeCheck, Building2, CalendarDays, CheckCircle2, Fingerprint, LoaderCircle, MailCheck, MapPin, Phone, Save, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { UserProfile } from '../types';
+import TramIALogo from './TramIALogo';
+import { Department, District, loadUbigeo, Province } from '../services/ubigeo';
 
-interface ProfileViewProps {
-  profile: UserProfile;
-  onUpdateProfile: (p: UserProfile) => void;
-}
+interface ProfileViewProps { profile: UserProfile; onUpdateProfile: (profile: UserProfile) => void; }
+type Notice = { type: 'success' | 'error'; text: string } | null;
 
 export default function ProfileView({ profile, onUpdateProfile }: ProfileViewProps) {
-  const [profileTab, setProfileTab] = useState<'info' | 'pago' | 'seguridad' | 'notif'>('info');
+  const [contact, setContact] = useState({ phone: profile.phone || '', address: profile.address || '', department: profile.department || '', province: profile.province || '', district: profile.district || '' });
+  const [departments, setDepartments] = useState<Department[]>([]), [provinces, setProvinces] = useState<Province[]>([]), [districts, setDistricts] = useState<District[]>([]);
+  const [identity, setIdentity] = useState({ document: '', birthDate: '' });
+  const [saving, setSaving] = useState(false), [validating, setValidating] = useState(false), [sendingEmail, setSendingEmail] = useState(false);
+  const [contactNotice, setContactNotice] = useState<Notice>(null), [identityNotice, setIdentityNotice] = useState<Notice>(null), [emailNotice, setEmailNotice] = useState<Notice>(null);
+  const isIdentityVerified = profile.identityVerificationStatus === 'verified';
 
-  // Input states synchronized from props
-  const [fullName, setFullName] = useState(profile.fullName);
-  const [dniNumber, setDniNumber] = useState(profile.dni);
-  const [phone, setPhone] = useState(profile.phone);
-  const [address, setAddress] = useState(profile.address);
+  useEffect(() => setContact({ phone: profile.phone || '', address: profile.address || '', department: profile.department || '', province: profile.province || '', district: profile.district || '' }), [profile]);
+  useEffect(() => { loadUbigeo().then((data) => { setDepartments(data.departments); setProvinces(data.provinces); setDistricts(data.districts); }).catch(() => setContactNotice({ type: 'error', text: 'No pudimos cargar el catálogo de ubicaciones.' })); }, []);
+  const updateContact = (key: keyof typeof contact) => (event: React.ChangeEvent<HTMLInputElement>) => setContact((value) => ({ ...value, [key]: event.target.value }));
+  const selectedDepartment = departments.find((item) => item.departamento === contact.department);
+  const availableProvinces = provinces.filter((item) => item.departamento_id === selectedDepartment?.id);
+  const selectedProvince = availableProvinces.find((item) => item.provincia === contact.province);
+  const availableDistricts = districts.filter((item) => item.departamento_id === selectedDepartment?.id && item.provincia_id === selectedProvince?.id);
 
-  // Sync with prop updates
-  useEffect(() => {
-    setFullName(profile.fullName);
-    setDniNumber(profile.dni);
-    setPhone(profile.phone);
-    setAddress(profile.address);
-  }, [profile]);
+  async function saveContact(event: React.FormEvent) {
+    event.preventDefault(); setSaving(true); setContactNotice(null);
+    try {
+      const response = await fetch('/api/v1/profile', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contact) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || 'No pudimos guardar tus datos.');
+      onUpdateProfile(result.user); setContactNotice({ type: 'success', text: 'Tus datos de contacto se guardaron correctamente.' });
+    } catch (error) { setContactNotice({ type: 'error', text: error instanceof Error ? error.message : 'Ocurrió un error.' }); }
+    finally { setSaving(false); }
+  }
 
-  // Interactive Save state message
-  const [isSaved, setIsSaved] = useState(false);
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateProfile({
-      fullName,
-      dni: dniNumber,
-      phone,
-      address,
-      email: profile.email
-    });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2500);
-  };
+  async function resendVerification() {
+    setSendingEmail(true); setEmailNotice(null);
+    try {
+      const response = await fetch('/api/v1/auth/resend-verification', { method: 'POST', credentials: 'include' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || 'No pudimos enviar el enlace.');
+      setEmailNotice({ type: 'success', text: result.message });
+    } catch (error) { setEmailNotice({ type: 'error', text: error instanceof Error ? error.message : 'Ocurrió un error.' }); }
+    finally { setSendingEmail(false); }
+  }
 
-  return (
-    <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-xs max-w-3xl mx-auto divide-y divide-gray-150 animate-fadeIn">
-      
-      {/* Visual profile header */}
-      <div className="p-6 md:p-8 bg-slate-900 text-white flex flex-col sm:flex-row items-center gap-6 relative">
-        <div className="absolute right-0 top-0 opacity-10 pointer-events-none p-4">
-          <Sparkles size={120} />
-        </div>
-        
-        <div className="w-16 h-16 rounded-full bg-blue-600 text-white font-black text-xl flex items-center justify-center border-4 border-slate-800 shadow-md">
-          MC
-        </div>
-        
-        <div className="text-center sm:text-left space-y-1 z-10">
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <h3 className="font-extrabold text-lg md:text-xl">{fullName}</h3>
-            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-400/30 text-[9px] font-bold px-2 py-0.5 rounded-md font-mono">
-              CIUDADANO VERIFICADO
-            </span>
-          </div>
-          <p className="text-xs text-slate-300">DNI: {dniNumber} • Lima, Perú • Copiloto TramIA Activo</p>
-        </div>
+  async function validateIdentity(event: React.FormEvent) {
+    event.preventDefault(); setValidating(true); setIdentityNotice(null);
+    try {
+      const response = await fetch('/api/v1/profile/validate-dni', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(identity) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || 'No pudimos validar tu identidad.');
+      onUpdateProfile(result.user); setIdentityNotice({ type: 'success', text: result.message }); setIdentity({ document: '', birthDate: '' });
+    } catch (error) { setIdentityNotice({ type: 'error', text: error instanceof Error ? error.message : 'Ocurrió un error.' }); }
+    finally { setValidating(false); }
+  }
+
+  return <div className="mx-auto max-w-5xl space-y-5 animate-fadeIn">
+    <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(120deg,#071a3d_0%,#0d47a1_58%,#13afd1_100%)] px-6 py-7 text-white shadow-xl shadow-blue-950/15 sm:px-9">
+      <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] bg-size-[23px_23px]" />
+      <div className="relative z-10 flex items-center justify-between gap-4">
+        <div><TramIALogo iconSize={34} textSize="text-xl" variant="dark" /><p className="mt-5 text-xs font-black uppercase tracking-[.18em] text-cyan-200">Mi perfil TramIA</p><h1 className="mt-2 text-2xl font-black sm:text-3xl">Hola, {profile.fullName || profile.username}</h1><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">Completa tu cuenta y valida tu identidad para gestionar trámites con mayor seguridad.</p></div>
+        <img src="/assets/mascot/tramia-bot-guiding.png" alt="TramIA te ayuda a completar tu perfil" className="hidden h-40 w-40 object-contain drop-shadow-xl sm:block" />
       </div>
+    </section>
 
-      {/* Internal Tabs navigation */}
-      <div className="flex bg-slate-50/70 p-1 px-4 overflow-x-auto whitespace-nowrap scrollbar-none">
-        {[
-          { id: 'info', label: 'Datos Personales', icon: User },
-          { id: 'pago', label: 'Métodos de Pago', icon: CreditCard },
-          { id: 'seguridad', label: 'Seguridad', icon: Key },
-          { id: 'notif', label: 'Notificaciones', icon: Bell }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const IsActive = profileTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setProfileTab(tab.id as any)}
-              className={`px-4 py-3 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border-b-2 ${
-                IsActive
-                  ? 'border-blue-600 text-blue-600 font-extrabold'
-                  : 'border-transparent text-gray-500 hover:text-slate-800'
-              }`}
-            >
-              <Icon size={14} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+    <div className="grid gap-5 lg:grid-cols-[1.08fr_.92fr]">
+      <form onSubmit={saveContact} className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">
+        <SectionTitle icon={UserRound} title="Datos de contacto" description="Puedes actualizar estos datos cuando lo necesites." />
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Field label="Celular" icon={Phone}><input className="field-input" required type="tel" value={contact.phone} onChange={updateContact('phone')} placeholder="+51 999 999 999" /></Field>
+          <Field label="Departamento" icon={MapPin}><select className="field-input field-select" required value={contact.department} onChange={(event) => setContact((value) => ({ ...value, department: event.target.value, province: '', district: '' }))}><option value="">Selecciona</option>{departments.map((item) => <option key={item.ubigeo} value={item.departamento}>{formatPlace(item.departamento)}</option>)}</select></Field>
+          <Field label="Provincia" icon={Building2}><select className="field-input field-select" required disabled={!selectedDepartment} value={contact.province} onChange={(event) => setContact((value) => ({ ...value, province: event.target.value, district: '' }))}><option value="">Selecciona</option>{availableProvinces.map((item) => <option key={item.ubigeo} value={item.provincia}>{formatPlace(item.provincia)}</option>)}</select></Field>
+          <Field label="Distrito" icon={MapPin}><select className="field-input field-select" required disabled={!selectedProvince} value={contact.district} onChange={(event) => setContact((value) => ({ ...value, district: event.target.value }))}><option value="">Selecciona</option>{availableDistricts.map((item) => <option key={item.ubigeo} value={item.distrito}>{formatPlace(item.distrito)}</option>)}</select></Field>
+          <div className="sm:col-span-2"><Field label="Dirección" icon={MapPin}><input className="field-input" required value={contact.address} onChange={updateContact('address')} placeholder="Av., calle, número y referencia" /></Field></div>
+        </div>
+        <NoticeBox notice={contactNotice} />
+        <button disabled={saving} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-lg shadow-blue-600/15 hover:bg-blue-700 disabled:opacity-60 sm:w-auto"><Save size={17} />{saving ? 'Guardando…' : 'Guardar cambios'}</button>
+      </form>
 
-      {/* Content panes based on selected tab */}
-      <div className="p-6 md:p-8">
-        
-        {/* TAB 1: DATA PROFILE STATEMENT */}
-        {profileTab === 'info' && (
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              
-              <div className="space-y-2 sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">Nombres y Apellidos Completos</label>
-                <input 
-                  type="text" 
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full text-xs font-semibold px-4 py-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-hidden bg-slate-50 focus:bg-white"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">Número de DNI (RENIEC verig.)</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={dniNumber}
-                    disabled
-                    className="w-full text-xs font-semibold px-4 py-3 border border-gray-200 rounded-xl bg-gray-100 text-gray-500 select-all"
-                  />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                    Sincronizado
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">Celular de contacto</label>
-                <input 
-                  type="text" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full text-xs font-semibold px-4 py-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-hidden bg-slate-50 focus:bg-white"
-                  required
-                />
-              </div>
-
-            </div>
-
-            {/* Simulated verification disclaimer */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-gray-200 flex gap-3 text-xs leading-relaxed text-slate-600">
-              <ShieldCheck className="text-blue-600 shrink-0 mt-0.5" size={16} />
-              <p>
-                Tus datos provienen de la validación biométrica oficial. Cualquier contradicción con tu ficha ciudadana de RENIEC anulará tus derechos de tramitación automática en la mesa de partes digital de los ministerios.
-              </p>
-            </div>
-
-            {/* Feedback notification status */}
-            {isSaved && (
-              <div className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 p-3 rounded-lg flex items-center gap-2">
-                <CheckCircle2 size={14} />
-                Cambios de perfil actualizados con éxito.
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="px-5 py-3 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer"
-              >
-                Guardar cambios de perfil
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* TAB 2: CREDIT / DEBIT / YAPE PAYMENTS SUPPORT */}
-        {profileTab === 'pago' && (
-          <div className="space-y-6">
-            <h4 className="font-extrabold text-sm text-slate-900">Tus tarjetas y aplicativos de pago</h4>
-            <p className="text-xs text-gray-400">TramIA soporta pasarelas de pago peruanas cifradas por PCI-DSS.</p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Credit card preview */}
-              <div className="p-5 rounded-2xl border border-gray-200 bg-radial from-slate-900 to-slate-950 text-white flex flex-col justify-between h-40">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-0.5">
-                    <p className="font-mono text-[9px] tracking-widest text-slate-400 uppercase">Tarjetas registradas</p>
-                    <p className="text-xs font-bold text-white uppercase italic">Interbank Gold</p>
-                  </div>
-                  <CreditCard size={24} className="text-indigo-400" />
-                </div>
-                
-                <div>
-                  <p className="font-mono text-xs tracking-widest text-slate-100 font-semibold">•••• •••• •••• 1049</p>
-                  <div className="flex justify-between mt-2 text-[10px] text-gray-450 font-mono">
-                    <span>MAYRA CAMPOS SOLANO</span>
-                    <span>EXP: 09/2029</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Peruvian payment apps integrations */}
-              <div className="p-5 rounded-2xl border border-dashed border-gray-200 bg-slate-50 flex flex-col justify-between h-40">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-800 font-extrabold text-xs">Yape / Plin Directo</span>
-                  <QrCode size={20} className="text-purple-650" />
-                </div>
-                
-                <p className="text-xs text-slate-600 leading-normal">
-                  Sincronizado con el número celular asociado <span className="font-bold">+51 *** *** 104</span>. Paga tus tasas y honorarios con código QR instantáneo.
-                </p>
-
-                <span className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 w-fit rounded font-bold uppercase tracking-wider font-mono">
-                  Sincronizado
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: PASSWORD AND CODIGO DE SEGURIDAD KEY SOL */}
-        {profileTab === 'seguridad' && (
-          <div className="space-y-6">
-            <h4 className="font-extrabold text-sm text-slate-900">Seguridad legal y Clave SOL</h4>
-            <p className="text-xs text-gray-400">Configura tus firmas digitales de mutuo acuerdo ante Indecopi.</p>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-amber-50 text-amber-900 rounded-xl border border-amber-100 flex gap-3 text-xs">
-                <ShieldAlert className="text-amber-500 shrink-0 mt-0.5" size={16} />
-                <div>
-                  <p className="font-bold">Tu firma digital biométrica está activa</p>
-                  <p className="text-gray-500 mt-0.5">Esto permite que tu asesor Rodrigo presente expedientes oficiales ante SUNARP sin tener que acudir a un poder notarial formal de alto costo.</p>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">Acceso Biométrico Móvil</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Ingresa al portal con FaceID / TouchID en tu navegador compatible.</p>
-                </div>
-                <div className="h-6 w-11 bg-blue-600 rounded-full flex items-center px-1 cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full translate-x-5 transition-transform" />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">Clave SOL de SUNAT Encriptada</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Utilizada exclusivamente por el validador automático de la empresa para declarar libros.</p>
-                </div>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg font-bold font-mono">
-                  ACTIVO CRIPTOGRÁFICO
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: ALERTS PREFERENCES TOGGLES */}
-        {profileTab === 'notif' && (
-          <div className="space-y-6">
-            <h4 className="font-extrabold text-sm text-slate-900">Canales de recordatorio y notificaciones</h4>
-            <p className="text-xs text-gray-400">Decide cómo deseas enterarte sobre tu fecha de DNI o caducidad del SOAT.</p>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">Alertas por Mensajería de Texto (SMS)</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Enviaremos alertas críticas 3 meses antes de que expire tu brevete o DNI.</p>
-                </div>
-                <div className="h-6 w-11 bg-blue-600 rounded-full flex items-center px-1 cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full translate-x-5 transition-transform" />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">Alertas por Correo Electrónico Semanales</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Novedades legislativas del diario oficial El Peruano y estados de trámite.</p>
-                </div>
-                <div className="h-6 w-11 bg-blue-600 rounded-full flex items-center px-1 cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full translate-x-5 transition-transform" />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">Consultas proactivas de Multas de Tránsito SUTRAN</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">Monitoreamos el historial de tus placas de forma automática cada fin de mes.</p>
-                </div>
-                <div className="h-6 w-11 bg-slate-200 rounded-full flex items-center px-1 cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full transition-transform" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <div className="space-y-5">
+        <section className="flex min-h-[150px] flex-col items-center justify-center rounded-3xl border border-blue-100 bg-white p-5 text-center shadow-sm sm:p-7">
+          <SectionTitle icon={MailCheck} title="Verificación de correo" description={profile.email} centered />
+          <StatusBadge verified={Boolean(profile.emailVerified)} verifiedText="Correo verificado" pendingText="Verificación pendiente" />
+          {!profile.emailVerified && <><p className="mt-4 text-xs leading-5 text-slate-600">Te enviaremos un enlace de uso único. Podrás continuar usando TramIA mientras completas la verificación.</p><button type="button" onClick={resendVerification} disabled={sendingEmail} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-extrabold text-blue-700 hover:bg-blue-100 disabled:opacity-60"><Send size={15} />{sendingEmail ? 'Enviando…' : 'Enviar enlace de verificación'}</button></>}
+          <NoticeBox notice={emailNotice} />
+        </section>
+        <section className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-5 sm:p-6"><div className="flex gap-3"><ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={21} /><div><h3 className="text-sm font-black text-slate-950">Tus datos están protegidos</h3><p className="mt-1 text-xs leading-5 text-slate-600">El número completo de DNI se guarda cifrado y nunca se muestra nuevamente. TramIA no solicita tu Clave SOL.</p></div></div></section>
       </div>
     </div>
-  );
+
+    <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">
+      <SectionTitle icon={Fingerprint} title="Identidad ciudadana" description="Valida que el DNI te pertenece usando tu fecha de nacimiento." />
+      {isIdentityVerified ? <div className="mt-6 grid gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:grid-cols-2 lg:grid-cols-4"><ReadOnly label="Nombres y apellidos" value={profile.fullName} /><ReadOnly label="DNI" value={profile.dni} /><ReadOnly label="Fecha de nacimiento" value={profile.birthDate || 'Validada'} /><ReadOnly label="Sexo registrado" value={profile.gender || '—'} /></div> : <form onSubmit={validateIdentity} className="mt-6 grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+        <Field label="DNI" icon={Fingerprint}><input className="field-input" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} required value={identity.document} onChange={(e) => setIdentity((v) => ({ ...v, document: e.target.value.replace(/\D/g, '') }))} placeholder="8 dígitos" /></Field>
+        <Field label="Fecha de nacimiento" icon={CalendarDays}><input className="field-input" type="date" required max={new Date().toISOString().slice(0, 10)} value={identity.birthDate} onChange={(e) => setIdentity((v) => ({ ...v, birthDate: e.target.value }))} /></Field>
+        <button disabled={validating} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-extrabold text-white hover:bg-blue-800 disabled:opacity-60">{validating ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />}{validating ? 'Validando…' : 'Validar identidad'}</button>
+      </form>}
+      {!isIdentityVerified && <p className="mt-4 text-xs leading-5 text-slate-500">Los nombres, apellidos, sexo y fecha de nacimiento se completarán desde la fuente de identidad y ya no podrán editarse manualmente.</p>}
+      <NoticeBox notice={identityNotice} />
+    </section>
+  </div>;
 }
+
+function SectionTitle({ icon: Icon, title, description, centered = false }: { icon: React.ElementType; title: string; description: string; centered?: boolean }) { return <div className={`flex gap-3 ${centered ? 'flex-col items-center text-center' : ''}`}><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-600"><Icon size={21} /></span><div><h2 className="text-lg font-black text-slate-950">{title}</h2><p className="mt-0.5 max-w-full break-all text-xs leading-5 text-slate-500">{description}</p></div></div>; }
+function Field({ label, icon: Icon, children }: { label: string; icon: React.ElementType; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 flex items-center gap-2 text-xs font-extrabold text-slate-700"><Icon size={14} className="text-blue-600" />{label}</span>{children}</label>; }
+function StatusBadge({ verified, verifiedText, pendingText }: { verified: boolean; verifiedText: string; pendingText: string }) { return <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-extrabold ${verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{verified ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}{verified ? verifiedText : pendingText}</span>; }
+function NoticeBox({ notice }: { notice: Notice }) { return notice ? <div role="status" className={`mt-4 flex gap-2 rounded-xl border p-3 text-xs font-semibold ${notice.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{notice.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}<span>{notice.text}</span></div> : null; }
+function ReadOnly({ label, value }: { label: string; value?: string }) { return <div><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">{label}</p><p className="mt-1 text-sm font-bold text-slate-900">{value || '—'}</p></div>; }
+function formatPlace(value: string) { return value.toLocaleLowerCase('es-PE').replace(/(^|\s)(\p{L})/gu, (_, space, letter) => `${space}${letter.toLocaleUpperCase('es-PE')}`); }

@@ -60,7 +60,7 @@ const GOALS_REGISTRY: Record<string, GoalDetail> = {
     procedures: [
       { id: 'reserva-nombre', status: 'Recomendado', difficulty: 'Baja', why: 'Protege tu razón social o denominación elegida impidiendo que otras empresas la registren en SUNARP.' },
       { id: 'crear-empresa', status: 'Mandatorio', difficulty: 'Alta', why: 'Establece formalmente tu personería jurídica mediante firma de escritura pública en Notaría.' },
-      { id: 'ruc-sunat', status: 'Mandatorio', difficulty: 'Media', why: 'Inscripción tributaria oficial indispensable para activar tu Clave SOL y emitir comprobantes de pago.' },
+      { id: 'ruc-sunat', status: 'Mandatorio', difficulty: 'Media', why: 'Inscripción tributaria oficial indispensable para emitir comprobantes de pago.' },
       { id: 'licencia-funcionamiento', status: 'Opcional', difficulty: 'Media', why: 'Autorización municipal obligatoria si planeas contar con un local o establecimiento abierto al público.' }
     ]
   },
@@ -100,6 +100,17 @@ export default function SearchView({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
+  const categoryOptions = useMemo(
+    () => ['Todos', ...Array.from(new Set(procedures.map((procedure) => procedure.category))).sort((a, b) => a.localeCompare(b, 'es'))],
+    [procedures]
+  );
+
+  React.useEffect(() => {
+    if (selectedCategory && !categoryOptions.includes(selectedCategory)) {
+      setSelectedCategory(null);
+    }
+  }, [categoryOptions, selectedCategory]);
+
   // Sync initial search text from parents (e.g. popular tags from Home)
   React.useEffect(() => {
     if (initialSearchText) {
@@ -136,7 +147,7 @@ export default function SearchView({
     if (text.includes('viaj') || text.includes('travel') || text.includes('extranjero') || text.includes('pasaport') || text.includes('vuelo') || text.includes('migracion') || text.includes('salida') || text.includes('menor')) {
       return GOALS_REGISTRY.travel;
     }
-    if (text.includes('empresa') || text.includes('negocio') || text.includes('abrir') || text.includes('crear') || text.includes('constitu') || text.includes('sac') || text.includes('eirl') || text.includes('ruc') || text.includes('sunat') || text.includes('clave sol')) {
+    if (text.includes('empresa') || text.includes('negocio') || text.includes('abrir') || text.includes('crear') || text.includes('constitu') || text.includes('sac') || text.includes('eirl') || text.includes('ruc') || text.includes('sunat')) {
       return GOALS_REGISTRY.business;
     }
     if (text.includes('casa') || text.includes('propiedad') || text.includes('comprar casa') || text.includes('departamento') || text.includes('terreno') || text.includes('inmueble') || text.includes('alcabala') || text.includes('hipoteca')) {
@@ -365,7 +376,7 @@ export default function SearchView({
           {/* Categories Tab Bar */}
           <div className="border-b border-gray-200 pb-1">
             <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap py-1 scrollbar-none">
-              {['Todos', 'Identidad', 'Negocios', 'Transporte', 'Viajes', 'Estado Civil'].map((cat) => {
+              {categoryOptions.map((cat) => {
                 const IsActive = (!selectedCategory && cat === 'Todos') || selectedCategory === cat;
                 return (
                   <button

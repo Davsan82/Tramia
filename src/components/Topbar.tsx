@@ -1,108 +1,17 @@
-import React from 'react';
-import { Search, Menu } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Clock3, FileText, History, Home, LogIn, LogOut, User, UserPlus } from 'lucide-react';
 import { ExpirationReminder, UserProfile } from '../types';
 import TramIALogo from './TramIALogo';
 
-interface TopbarProps {
-  onSearchFocus: () => void;
-  searchText: string;
-  setSearchText: (text: string) => void;
-  onOpenSidebar: () => void;
-  reminders: ExpirationReminder[];
-  onTriggerReminder: (reminder: ExpirationReminder) => void;
-  profile: UserProfile | null;
-  onTriggerLogin?: (mode?: 'login' | 'signup') => void;
-  isHomeView?: boolean;
-  currentTab?: string;
-  setCurrentTab?: (tab: 'inicio' | 'panel' | 'proceso' | 'historial' | 'perfil') => void;
-  setInicioSubView?: (view: 'home' | 'search' | 'detail' | 'workspace') => void;
-  activeCount?: number;
+interface Props { onSearchFocus:()=>void; searchText:string; setSearchText:(text:string)=>void; onOpenSidebar:()=>void; reminders:ExpirationReminder[]; onTriggerReminder:(reminder:ExpirationReminder)=>void; profile:UserProfile|null; onTriggerLogin?:(mode?:'login'|'signup')=>void; isHomeView?:boolean; currentTab?:string; setCurrentTab?:(tab:'inicio'|'panel'|'proceso'|'historial'|'perfil')=>void; setInicioSubView?:(view:'home'|'catalog'|'search'|'detail'|'workspace'|'privacy'|'about'|'terms'|'contact')=>void; activeCount?:number; onLogout?:()=>void; sessionRemainingSeconds?:number; }
+
+export default function Topbar({profile,onTriggerLogin,currentTab,setCurrentTab,setInicioSubView,activeCount=0,onLogout,sessionRemainingSeconds=900}:Props){
+  const [open,setOpen]=useState(false); const menuRef=useRef<HTMLDivElement>(null);
+  useEffect(()=>{const close=(event:MouseEvent)=>{if(!menuRef.current?.contains(event.target as Node))setOpen(false)};document.addEventListener('mousedown',close);return()=>document.removeEventListener('mousedown',close)},[]);
+  const initials=profile?.fullName?profile.fullName.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase():'INV';
+  const go=(tab:'inicio'|'proceso'|'historial'|'perfil')=>{setCurrentTab?.(tab);if(tab==='inicio')setInicioSubView?.('home');setOpen(false)};
+  const minutes=Math.floor(sessionRemainingSeconds/60),seconds=sessionRemainingSeconds%60;
+  return <><header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex h-17 max-w-[1500px] items-center gap-6 px-4 sm:px-6 lg:px-8"><TramIALogo iconSize={32} textSize="text-xl" variant="light" onClick={()=>go('inicio')} className="shrink-0"/>{profile&&<nav className="hidden flex-1 items-center justify-center gap-1 md:flex" aria-label="Navegación principal"><Nav icon={Home} label="Inicio" active={currentTab==='inicio'} onClick={()=>go('inicio')}/><Nav icon={FileText} label="Mis trámites" active={currentTab==='proceso'||currentTab==='historial'} badge={activeCount} onClick={()=>go('proceso')}/><Nav icon={User} label="Mi perfil" active={currentTab==='perfil'} onClick={()=>go('perfil')}/></nav>}<div className="ml-auto">{profile?<div className="relative" ref={menuRef}><button onClick={()=>setOpen(!open)} className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2.5 shadow-sm hover:border-blue-300 hover:bg-blue-50"><span className="grid size-8 place-items-center rounded-xl bg-[linear-gradient(135deg,#0e55c7,#13afd1)] text-xs font-black text-white">{initials}</span><span className="hidden text-left sm:block"><span className="block max-w-36 truncate text-xs font-black">{profile.fullName}</span><span className="block text-[10px] text-slate-500">Sesión activa</span></span><ChevronDown size={15} className="text-slate-400"/></button>{open&&<div className="absolute right-0 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"><div className="bg-[linear-gradient(120deg,#071a3d,#0e55c7)] p-4 text-white"><p className="text-sm font-black">{profile.fullName}</p><p className="mt-1 truncate text-xs text-blue-100">{profile.email}</p></div><div className="p-2"><button onClick={()=>go('perfil')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold hover:bg-blue-50"><User size={17} className="text-blue-600"/> Ver mi perfil</button><button onClick={()=>go('historial')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold hover:bg-blue-50"><History size={17} className="text-blue-600"/> Historial de trámites</button><div className="my-2 rounded-xl bg-slate-50 p-3"><div className="flex items-center justify-between text-xs"><span className="flex items-center gap-2 font-bold text-slate-600"><Clock3 size={15}/> Cierre por inactividad</span><strong className={sessionRemainingSeconds<120?'text-red-600':'text-blue-700'}>{minutes}:{String(seconds).padStart(2,'0')}</strong></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-600 transition-all" style={{width:`${Math.max(0,Math.min(100,sessionRemainingSeconds/9))}%`}}/></div></div><button onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-black text-red-600 hover:bg-red-50"><LogOut size={17}/> Cerrar sesión</button></div></div>}</div>:<div className="flex gap-2"><button onClick={()=>onTriggerLogin?.('login')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 sm:px-4"><LogIn size={17}/> <span className="hidden sm:inline">Iniciar sesión</span></button><button onClick={()=>onTriggerLogin?.('signup')} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-3 text-xs font-black text-white shadow-lg shadow-blue-600/20 sm:px-4"><UserPlus size={17}/> <span className="hidden sm:inline">Crear cuenta</span></button></div>}</div></div></header>{profile&&<nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-slate-200 bg-white/95 px-2 pb-[max(.45rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_25px_rgba(15,23,42,.08)] backdrop-blur md:hidden"><MobileNav icon={Home} label="Inicio" active={currentTab==='inicio'} onClick={()=>go('inicio')}/><MobileNav icon={FileText} label="Mis trámites" active={currentTab==='proceso'||currentTab==='historial'} badge={activeCount} onClick={()=>go('proceso')}/><MobileNav icon={User} label="Mi perfil" active={currentTab==='perfil'} onClick={()=>go('perfil')}/></nav>}</>;
 }
-
-export default function Topbar({
-  onSearchFocus,
-  searchText,
-  setSearchText,
-  onOpenSidebar,
-  reminders,
-  onTriggerReminder,
-  profile,
-  onTriggerLogin,
-  isHomeView = false,
-  currentTab,
-  setCurrentTab,
-  setInicioSubView,
-  activeCount = 0
- }: TopbarProps) {
-  // Extract initials
-  const initials = profile && profile.fullName
-    ? profile.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-    : 'INV';
-
-  // Extract short name
-  const shortName = profile && profile.fullName
-    ? profile.fullName.split(' ').slice(0, 2).join(' ')
-    : 'Ciudadano Invitado';
-
-  return (
-    <header className="h-16 border-b border-gray-200 bg-white sticky top-0 z-30 px-4 md:px-8 flex items-center justify-between">
-      {/* Left section: Hamburger for mobile + Interactive Search trigger, OR Branding in onboarding/unauthenticated */}
-      {!profile ? (
-        <div className="flex items-center gap-6 flex-1">
-          <TramIALogo 
-            iconSize={32}
-            textSize="text-xl"
-            variant="light"
-            onClick={() => {
-              if (setCurrentTab) setCurrentTab('inicio');
-              if (setInicioSubView) setInicioSubView('home');
-            }}
-          />
-        </div>
-      ) : (
-        <div className="flex items-center gap-4 flex-1">
-          <button 
-            onClick={onOpenSidebar}
-            className="p-1 text-gray-500 hover:text-gray-900 md:hidden rounded-md focus:outline-none"
-            id="open-sidebar-btn"
-          >
-            <Menu size={22} />
-          </button>
-        </div>
-      )}
-
-      {/* Right section: System Status + Notifications + Profile Info */}
-      <div className="flex items-center gap-4">
-        {/* User Account Capsule */}
-        <div className="flex items-center gap-2.5 border-l border-gray-200 pl-4">
-          {profile ? (
-            <>
-              <div className="hidden sm:block text-right">
-                <p className="text-xs font-semibold text-slate-800">{shortName}</p>
-                <p className="text-[10px] text-slate-400 font-mono">{profile.email || 'correo@ciudadano.pe'}</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-white font-medium text-xs flex items-center justify-center border border-gray-200 uppercase">
-                {initials}
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onTriggerLogin?.('login')}
-                className="px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
-              >
-                Iniciar Sesión
-              </button>
-              <button
-                onClick={() => onTriggerLogin?.('signup')}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-sm shadow-blue-500/10 active:scale-[0.98]"
-              >
-                Crear Cuenta
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
+function Nav({icon:Icon,label,active,badge,onClick}:{icon:React.ElementType;label:string;active:boolean;badge?:number;onClick:()=>void}){return <button onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-extrabold transition ${active?'bg-blue-50 text-blue-700':'text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}><Icon size={18}/>{label}{Boolean(badge)&&<span className="grid min-w-5 place-items-center rounded-full bg-blue-600 px-1.5 text-[10px] text-white">{badge}</span>}</button>}
+function MobileNav({icon:Icon,label,active,badge,onClick}:{icon:React.ElementType;label:string;active:boolean;badge?:number;onClick:()=>void}){return <button onClick={onClick} className={`relative flex min-h-13 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-black ${active?'bg-blue-50 text-blue-700':'text-slate-500'}`}><Icon size={20}/>{label}{Boolean(badge)&&<span className="absolute right-[28%] top-1 grid min-w-4 place-items-center rounded-full bg-blue-600 px-1 text-[9px] text-white">{badge}</span>}</button>}

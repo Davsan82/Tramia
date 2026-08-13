@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786570691129,
+      "tag": "0000_eager_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786570891095,
+      "tag": "0001_crazy_yellow_claw",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786572328904,
+      "tag": "0002_robust_micromax",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786578687258,
+      "tag": "0003_pale_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786581654153,
+      "tag": "0004_conscious_darkhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786585842729,
+      "tag": "0005_red_omega_sentinel",
+      "breakpoints": true
+    }
+  ]
+}

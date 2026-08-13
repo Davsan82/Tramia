@@ -152,14 +152,14 @@ export const PROCEDURES: TramiteOption[] = [
     estimatedDuration: "1 día hábil",
     coPilotAdvice: "Inscríbete en el RUC con tu DNI para emitir boletas y facturas electrónicas desde la App SUNAT.",
     actionLabel: "Obtener RUC",
-    description: "Inscripción tributaria de 10 dígitos y Clave SOL ante SUNAT para personas naturales que inician negocios.",
+    description: "Inscripción tributaria de 10 dígitos ante SUNAT para personas naturales que inician negocios.",
     popular: true,
     timeSavedText: "6 horas ahorradas",
     avoidedQueuesText: "Tramita tu RUC 100% digital sin ir al centro de atención SUNAT",
     feeAmount: "S/. 50.00",
     steps: [
       { id: "step-ruc-1", title: "Declaración de Domicilio Fiscal y Actividades", description: "Llenado de datos de dirección tributaria y código de actividad económica (CIIU) en la App SUNAT o portal web.", status: "PENDIENTE", order: 1 },
-      { id: "step-ruc-2", title: "Generación de RUC y Clave SOL SUNAT", description: "Activación del RUC de 10 dígitos y recepción de credenciales SOL para facturación electrónica.", status: "PENDIENTE", order: 2 }
+      { id: "step-ruc-2", title: "Activación del RUC en SUNAT", description: "Activación del RUC de 10 dígitos y orientación para configurar el acceso directamente en los canales oficiales de SUNAT.", status: "PENDIENTE", order: 2 }
     ],
     requirements: [
       {
@@ -207,7 +207,7 @@ export const PROCEDURES: TramiteOption[] = [
       { id: "step-emp-1", title: "Reserva de Nombre SUNARP", description: "Verificación de homonimia y reserva oficial de razón social en SUNARP.", status: "PENDIENTE", order: 1 },
       { id: "step-emp-2", title: "Minuta de Constitución", description: "Elaboración de estatutos, objeto social y reparto de acciones elaborado por abogado.", status: "PENDIENTE", order: 2 },
       { id: "step-emp-3", title: "Firma de Escritura Pública", description: "Suscripción ante notaría autorizada con huellas dactilares.", status: "PENDIENTE", order: 3 },
-      { id: "step-emp-4", title: "Recoger RUC y Clave SOL en la oficina de SUNAT / Notaría", description: "Obtención y recojo presencial de los accesos definitivos de la empresa y RUC en Notaría o SUNAT.", status: "PENDIENTE", order: 4 }
+      { id: "step-emp-4", title: "Activar el RUC en SUNAT", description: "Obtención del RUC y configuración personal de los accesos en los canales oficiales de SUNAT.", status: "PENDIENTE", order: 4 }
     ],
     requirements: [
       {
@@ -519,4 +519,3 @@ export const EXPIRATION_REMINDERS: ExpirationReminder[] = [];
 export const RECORDATORIOS_VENCIMIENTO = EXPIRATION_REMINDERS;
 
 export const MOCK_HISTORY: HistoryRecord[] = [];
-

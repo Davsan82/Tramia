@@ -150,8 +150,8 @@ function getStepOfficialUrl(stepId: string, procedureId: string, defaultUrl: str
     if (sId.includes('solicitud') || sId.includes('inscrib') || sId.includes('step-ruc-1')) {
       return "https://www.gob.pe/654-inscribirse-en-el-ruc"; // Trámite paso a paso de Inscripción en RUC
     }
-    if (sId.includes('sol') || sId.includes('clave') || sId.includes('step-ruc-2')) {
-      return "https://www.gob.pe/671-obtener-clave-sol"; // Obtener Clave SOL de SUNAT
+    if (sId.includes('acceso') || sId.includes('activ') || sId.includes('step-ruc-2')) {
+      return "https://www.sunat.gob.pe/operacioneslineas.html"; // Canales oficiales de SUNAT
     }
     if (sId.includes('activ') || sId.includes('tribut') || sId.includes('step-ruc-3')) {
       return "https://www.sunat.gob.pe/operacioneslineas.html"; // Mis Operaciones en Línea SUNAT

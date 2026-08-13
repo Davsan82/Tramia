@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "procedure_sources_version_url_uidx" ON "procedure_sources" USING btree ("procedure_version_id","url");

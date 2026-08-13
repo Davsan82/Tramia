@@ -29,6 +29,10 @@ El “átomo” de TramIA es el ciclo completo que comienza con una pregunta y t
 
 ## Estado actual
 
+### Sistema visual
+
+La interfaz actual constituye la **versión clara oficial**. El proyecto deja preparado un contrato de tokens semánticos para incorporar en el futuro una versión oscura sin duplicar componentes. Las reglas y decisiones se documentan en [`docs/THEMING.md`](docs/THEMING.md).
+
 Este repositorio contiene un **MVP/prototipo demostrativo**, no un sistema gubernamental ni una plataforma lista para producción.
 
 Actualmente incluye:

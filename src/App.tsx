@@ -1,35 +1,56 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Sidebar from './components/Sidebar';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Topbar from './components/Topbar';
 import HomeView from './components/HomeView';
+import PrivacyView from './components/PrivacyView';
+import AboutView from './components/AboutView';
+import TermsView from './components/TermsView';
+import ContactView from './components/ContactView';
+import EmailVerificationView from './components/EmailVerificationView';
+import CatalogView from './components/CatalogView';
 import PanelView from './components/PanelView';
 import SearchView from './components/SearchView';
-import ProcedureDetailView from './components/ProcedureDetailView';
+import ProcedureDetailView from './components/ModernProcedureDetailView';
 import WorkspaceView from './components/WorkspaceView';
-import InProgressView from './components/InProgressView';
+import MyProceduresView from './components/MyProceduresView';
 import HistoryView from './components/HistoryView';
 import ProfileView from './components/ProfileView';
 import LoginView from './components/LoginView';
 import DocumentValidationView from './components/DocumentValidationView';
 import { trackEvent } from './utils/analytics';
 
-import { PROCEDURES, INITIAL_ACTIVE_PROCEDURES, EXPIRATION_REMINDERS, MOCK_HISTORY } from './data';
+import { INITIAL_ACTIVE_PROCEDURES, EXPIRATION_REMINDERS } from './data';
+import { loadProcedureCatalog } from './services/catalog';
 import { Procedure, ActiveProcedure, ExpirationReminder, Requirement, UserProfile } from './types';
 import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ShieldCheck, ChevronRight } from 'lucide-react';
 
 export default function App() {
+  const [procedures, setProcedures] = useState<Procedure[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    loadProcedureCatalog().then((catalog) => {
+      if (active && catalog.length > 0) setProcedures(catalog);
+    });
+    return () => { active = false; };
+  }, []);
   // Navigation: primary tabs associated with left sidebar
   const [currentTab, setCurrentTab] = useState<'inicio' | 'panel' | 'proceso' | 'validador' | 'historial' | 'perfil'>('inicio');
 
   // Multi-level secondary tabs / navigation nested inside 'inicio' tab:
   // 'home' | 'search' | 'detail' | 'workspace'
-  const [inicioSubView, setInicioSubView] = useState<'home' | 'search' | 'detail' | 'workspace'>('home');
+  type InicioView = 'home' | 'catalog' | 'search' | 'detail' | 'workspace' | 'privacy' | 'about' | 'terms' | 'contact' | 'verifyEmail';
+  const initialInstitutionalView = (): InicioView => ({ '/tramites': 'catalog', '/privacidad': 'privacy', '/sobre-tramia': 'about', '/terminos': 'terms', '/contacto': 'contact', '/verificar-correo': 'verifyEmail' }[window.location.pathname] as InicioView || 'home');
+  const [inicioSubView, setInicioSubView] = useState<InicioView>(initialInstitutionalView);
+  const detailReturnRef = useRef<{ tab: typeof currentTab; view: InicioView; path: string; scrollY: number }>({ tab: 'inicio', view: 'catalog', path: '/tramites', scrollY: 0 });
+  const openInstitutional = (view: Extract<InicioView, 'privacy' | 'about' | 'terms' | 'contact'>) => { const path = { privacy: '/privacidad', about: '/sobre-tramia', terms: '/terminos', contact: '/contacto' }[view]; window.history.pushState({}, '', path); setInicioSubView(view); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const closeInstitutional = () => { window.history.replaceState({}, '', '/'); setCurrentTab('inicio'); setInicioSubView('home'); window.scrollTo({ top: 0 }); };
 
   // Active selected procedure for Screen 3 Details and Screens 4/5/7 Workspace
   const [selectedProcedure, setSelectedProcedure] = useState<Procedure | null>(null);
 
   // Global search text focused from top bar or search view
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
+  const [catalogCategory, setCatalogCategory] = useState(() => new URLSearchParams(window.location.search).get('categoria') || 'Todos');
 
   // Track selection of "Hacerlo yo mismo" vs "Delegar a TramIA" from the Detail View
   const [isDelegatedSelected, setIsDelegatedSelected] = useState(false);
@@ -80,26 +101,34 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'alert' } | null>(null);
 
   // Profile authenticated state manager (starts on Login / Create Profile mode)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('tramia_current_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(15 * 60);
 
-  // Keep localStorage synchronized with currently logged-in user profile
+  const logout = async () => {
+    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+    setUserProfile(null); setCurrentTab('inicio'); setInicioSubView('home'); setSessionRemainingSeconds(15 * 60);
+    window.history.replaceState({}, '', '/');
+  };
+
+  // Restore the server-backed HttpOnly session without exposing its token to JavaScript.
   useEffect(() => {
-    try {
-      if (userProfile) {
-        localStorage.setItem('tramia_current_user', JSON.stringify(userProfile));
-      } else {
-        localStorage.removeItem('tramia_current_user');
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    let active = true;
+    fetch('/api/v1/auth/session', { credentials: 'include' })
+      .then(async (response) => response.ok ? response.json() : { user: null })
+      .then((result) => { if (active) setUserProfile(result.user || null); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!userProfile) return;
+    let deadline = Date.now() + 15 * 60_000;
+    let lastServerTouch = 0;
+    const reset = () => { deadline = Date.now() + 15 * 60_000; setSessionRemainingSeconds(15 * 60); const now=Date.now(); if(now-lastServerTouch>60_000){lastServerTouch=now;void fetch('/api/v1/auth/session/touch',{method:'POST',credentials:'include'}).then(response=>{if(response.status===401)void logout()}).catch(()=>undefined);} };
+    const events: Array<keyof WindowEventMap> = ['pointerdown','keydown','scroll','touchstart'];
+    events.forEach(event => window.addEventListener(event, reset, { passive: true }));
+    const timer = window.setInterval(() => { const remaining = Math.max(0, Math.ceil((deadline-Date.now())/1000)); setSessionRemainingSeconds(remaining); if (remaining===0) { window.clearInterval(timer); void logout(); } }, 1000);
+    return () => { window.clearInterval(timer); events.forEach(event => window.removeEventListener(event, reset)); };
   }, [userProfile]);
 
   // Auth modal visibility and callback state
@@ -133,6 +162,12 @@ export default function App() {
 
   // Select particular procedure
   const handleSelectProcedure = (proc: Procedure) => {
+    detailReturnRef.current = {
+      tab: currentTab,
+      view: inicioSubView,
+      path: window.location.pathname === '/tramites' ? '/tramites' : '/',
+      scrollY: window.scrollY,
+    };
     setSelectedProcedure(proc);
     setCurrentTab('inicio');
     setInicioSubView('detail');
@@ -141,6 +176,14 @@ export default function App() {
       procedure_title: proc.title,
       category: proc.category
     });
+  };
+
+  const handleBackFromProcedureDetail = () => {
+    const origin = detailReturnRef.current;
+    setCurrentTab(origin.tab);
+    setInicioSubView(origin.view === 'detail' || origin.view === 'workspace' ? 'catalog' : origin.view);
+    window.history.replaceState({}, '', origin.path);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: origin.scrollY, behavior: 'auto' })));
   };
 
   // Go to Details/Checklist Workspace
@@ -369,7 +412,7 @@ export default function App() {
 
   // Find procedure details by ID to allow easy checklist jump
   const handleSelectProcedureById = (procedureId: string) => {
-    const found = PROCEDURES.find(p => p.id === procedureId);
+    const found = procedures.find(p => p.id === procedureId);
     if (found) {
       // Find custom requirements from active states if any
       const activeCopy = activeProcedures.find(ap => ap.procedureId === procedureId);
@@ -445,7 +488,7 @@ export default function App() {
 
   // Notification / Alarm Renewal Trigger
   const handleTriggerReminderRenew = (reminder: ExpirationReminder) => {
-    const correspondingProc = PROCEDURES.find(p => {
+    const correspondingProc = procedures.find(p => {
       if (reminder.type === 'DNI' && p.id === 'renovar-dni') return true;
       if (reminder.type === 'Pasaporte' && p.id === 'sacar-pasaporte') return true;
       if (reminder.type === 'Licencia' && p.id === 'licencia-conducir') return true;
@@ -515,11 +558,14 @@ export default function App() {
           <>
             {inicioSubView === 'home' && (
               <HomeView
+                onViewAll={() => { setSearchText(''); setCatalogCategory('Todos'); window.history.pushState({}, '', '/tramites'); setInicioSubView('catalog'); window.scrollTo({top:0}); }}
+                onSelectCategory={(category) => { setSearchText(''); setCatalogCategory(category); window.history.pushState({}, '', `/tramites?categoria=${encodeURIComponent(category)}`); setInicioSubView('catalog'); window.scrollTo({top:0,behavior:'smooth'}); }}
                 onStartSearch={() => {
                   setInicioSubView('search');
                 }}
                 onSelectProcedure={handleSelectProcedure}
-                popularProcedures={PROCEDURES.filter(p => p.popular)}
+                popularProcedures={procedures.filter(p => p.popular)}
+                procedures={procedures}
                 activeCount={inProgressProcedures.length}
                 onViewActive={() => setCurrentTab('proceso')}
                 activeProcedures={inProgressProcedures}
@@ -528,17 +574,29 @@ export default function App() {
                 onSelectProcedureById={handleSelectProcedureById}
                 onTriggerReminder={handleTriggerReminderRenew}
                 onTriggerLogin={handleTriggerLogin}
+                onOpenPrivacy={() => openInstitutional('privacy')}
+                onOpenInstitutional={(page) => openInstitutional(page)}
                 onSearch={(text) => {
                   setSearchText(text);
-                  setInicioSubView('search');
+                  setCatalogCategory('Todos');
+                  window.history.pushState({}, '', `/tramites?q=${encodeURIComponent(text)}`);
+                  setInicioSubView('catalog');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
                   trackEvent('buscar_tramite', { query: text });
                 }}
               />
             )}
 
+            {inicioSubView === 'privacy' && <PrivacyView onBack={closeInstitutional} />}
+            {inicioSubView === 'about' && <AboutView onBack={closeInstitutional} />}
+            {inicioSubView === 'terms' && <TermsView onBack={closeInstitutional} />}
+            {inicioSubView === 'contact' && <ContactView onBack={closeInstitutional} />}
+            {inicioSubView === 'verifyEmail' && <EmailVerificationView onOpenProfile={() => { window.history.replaceState({}, '', '/'); setCurrentTab(userProfile ? 'perfil' : 'inicio'); setInicioSubView('home'); if (!userProfile) handleTriggerLogin('login'); }} onLogin={() => handleTriggerLogin('login')} />}
+            {inicioSubView === 'catalog' && <CatalogView procedures={procedures} userProfile={userProfile} onBack={closeInstitutional} onSelectProcedure={handleSelectProcedure} onCreateAccount={()=>handleTriggerLogin('signup')} onLogin={()=>handleTriggerLogin('login')} initialQuery={searchText} initialCategory={catalogCategory} />}
+
             {inicioSubView === 'search' && (
               <SearchView
-                procedures={PROCEDURES}
+                procedures={procedures}
                 onSelectProcedure={handleSelectProcedure}
                 initialSearchText={searchText}
                 onAddActiveProcedure={(proc, isDelegated) => {
@@ -561,7 +619,7 @@ export default function App() {
             {inicioSubView === 'detail' && selectedProcedure && (
               <ProcedureDetailView
                 procedure={selectedProcedure}
-                onBack={() => setInicioSubView('search')}
+                onBack={handleBackFromProcedureDetail}
                 onStartProcedure={handleStartProcedure}
                 userProfile={userProfile}
                 onTriggerLogin={handleTriggerLogin}
@@ -579,7 +637,7 @@ export default function App() {
           ) : (
             <PanelView
               onSelectProcedure={handleSelectProcedure}
-              popularProcedures={PROCEDURES}
+              popularProcedures={procedures}
               activeCount={inProgressProcedures.length}
               onViewActive={() => setCurrentTab('proceso')}
               activeProcedures={inProgressProcedures}
@@ -602,7 +660,7 @@ export default function App() {
         )}
 
         {/* TAB 2: ACTIVE PROCEDURES STATE OVERVIEW */}
-        {currentTab === 'proceso' && (
+        {(currentTab === 'proceso' || currentTab === 'historial') && (
           !userProfile ? (
             renderGuestTabPrompt('En proceso', 'Regístrate o inicia sesión para ver tus trámites en curso, cargar requisitos biográficos e interactuar con el validador.')
           ) : (
@@ -621,14 +679,14 @@ export default function App() {
                 onDeleteProcedure={handleDeleteActiveProcedure}
               />
             ) : (
-              <InProgressView
-                activeProcedures={inProgressProcedures}
-                onSelectProcedureById={handleSelectProcedureById}
-                onNavigateToTab={(tab) => {
-                  setCurrentTab(tab);
-                  if (tab === 'inicio') setInicioSubView('home');
+              <MyProceduresView
+                onOpenProcedure={handleSelectProcedureById}
+                onExplore={() => {
+                  setCurrentTab('inicio');
+                  setInicioSubView('catalog');
+                  window.history.pushState({}, '', '/tramites');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                onDeleteProcedure={handleDeleteActiveProcedure}
               />
             )
           )
@@ -643,12 +701,12 @@ export default function App() {
         )}
 
         {/* TAB 3: DOCUMENT EXPIRATION LIST AND COMPLETED HISTORICS */}
-        {currentTab === 'historial' && (
+        {false && currentTab === 'historial' && (
           !userProfile ? (
             renderGuestTabPrompt('Historial', 'Accede a tu cuenta ciudadana para consultar tu historial consolidado de trámites resueltos y renovaciones automáticas.')
           ) : (
             <HistoryView
-              history={userProfile?.isNew ? [] : MOCK_HISTORY}
+              history={[]}
               activeCompletedProcedures={completedActiveProcedures}
               reminders={reminders}
               onTriggerReminderRenew={(type) => {
@@ -658,7 +716,7 @@ export default function App() {
               }}
               onSelectProcedure={handleSelectProcedure}
               onSelectProcedureById={handleSelectProcedureById}
-              procedures={PROCEDURES}
+              procedures={procedures}
             />
           )
         )}
@@ -683,10 +741,8 @@ export default function App() {
               {/* Elegant Logout control element */}
               <div className="max-w-3xl mx-auto flex justify-center pb-8">
                 <button
-                  onClick={() => {
-                    setUserProfile(null);
-                    setCurrentTab('inicio');
-                    setInicioSubView('home');
+                  onClick={async () => {
+                    await logout();
                   }}
                   className="px-6 py-2.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-xl text-xs font-bold transition-all cursor-pointer font-sans duration-150 border border-red-200"
                 >
@@ -701,31 +757,10 @@ export default function App() {
   };
 
   const isHomeView = currentTab === 'inicio' && inicioSubView === 'home';
-  const showSidebar = userProfile !== null;
-
   return (
     <div className="min-h-screen bg-slate-50 flex text-slate-900 overflow-x-hidden antialiased font-sans">
-      
-      {/* Sidebar vertical panel - Desktop Always open, Mobile Drawer slider (Shown only if logged in) */}
-      {showSidebar && (
-        <Sidebar
-          currentTab={currentTab}
-          setCurrentTab={(tab) => {
-            setCurrentTab(tab);
-            // When switching to 'inicio' sidebar, fall back to home
-            if (tab === 'inicio') setInicioSubView('home');
-          }}
-          isOpen={isSidebarOpen}
-          setIsOpen={setIsSidebarOpen}
-          activeCount={inProgressProcedures.length}
-          completedCount={(userProfile?.isNew ? 0 : MOCK_HISTORY.length) + completedActiveProcedures.length}
-          profile={userProfile}
-          onTriggerLogin={handleTriggerLogin}
-        />
-      )}
-
       {/* Main SaaS panel Container */}
-      <div className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-150 ${showSidebar ? 'md:pl-64' : 'md:pl-0'}`}>
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen pb-16 md:pb-0">
         
         {/* Topbar navigation interface */}
         <Topbar
@@ -742,9 +777,17 @@ export default function App() {
           onTriggerLogin={handleTriggerLogin}
           isHomeView={isHomeView}
           currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          setInicioSubView={setInicioSubView}
+          setCurrentTab={(tab) => {
+            setCurrentTab(tab);
+            if (tab === 'inicio') window.history.replaceState({}, '', '/');
+          }}
+          setInicioSubView={(view) => {
+            setInicioSubView(view);
+            if (view === 'home') window.history.replaceState({}, '', '/');
+          }}
           activeCount={inProgressProcedures.length}
+          onLogout={logout}
+          sessionRemainingSeconds={sessionRemainingSeconds}
         />
 
         {/* Global Floating Toast Alert Status banner */}
@@ -771,7 +814,7 @@ export default function App() {
         )}
 
         {/* Dynamic content canvas area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-8 max-w-6xl w-full mx-auto space-y-8">
+        <main className={`flex-1 w-full mx-auto ${currentTab === 'inicio' && ['home','catalog','privacy','about','terms','contact','verifyEmail'].includes(inicioSubView) ? 'max-w-none p-0' : 'max-w-6xl p-4 pb-8 sm:p-6 lg:p-8 space-y-8'}`}>
           {renderActiveTabContent()}
         </main>
       </div>
@@ -792,9 +835,8 @@ export default function App() {
               if (profile.isNew) {
                 setActiveProcedures([]);
                 setReminders([]);
-              } else {
-                setActiveProcedures(INITIAL_ACTIVE_PROCEDURES);
-                setReminders(EXPIRATION_REMINDERS);
+                setCurrentTab('panel');
+                setInicioSubView('home');
               }
               setToastMessage({
                 title: "¡Perfil Sincronizado!",

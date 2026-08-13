@@ -7,6 +7,16 @@ export interface Step {
   requiresEvidence?: boolean; // Indica si este paso requiere carga de archivo/foto
   actionUrl?: string; // Enlace directo opcional a portal oficial
   actionUrlLabel?: string;
+  stageId?: string;
+  stageName?: string;
+  stepType?: string;
+  helpText?: string;
+  whyItMatters?: string;
+  nextStepHint?: string;
+  dateTrackingType?: string;
+  reminderOffsets?: string[];
+  checklistItems?: Array<{ id: string; label: string; isRequired: boolean }>;
+  dependsOn?: string[];
 }
 
 export interface Requirement {
@@ -48,6 +58,7 @@ export interface TramiteOption {
   duration: string; // duración estimada del trámite
   estimatedDuration: string; // compatible con vistas anteriores
   entity?: string; // Entidad responsable (RENIEC, SUNAT, MTC, etc.)
+  officialUrl?: string; // Fuente oficial almacenada en el catálogo
   modality?: 'Virtual' | 'Presencial' | 'Mixta' | string; // Modalidad
   requirements: Requirement[];
   steps: Step[];
@@ -63,11 +74,20 @@ export interface TramiteOption {
 export type Procedure = TramiteOption;
 
 export interface UserProfile {
+  id?: string;
+  username?: string;
   fullName: string;
   dni: string;
   phone: string;
   address: string;
   email: string;
+  emailVerified?: boolean;
+  identityVerificationStatus?: string;
+  birthDate?: string;
+  gender?: string;
+  department?: string;
+  province?: string;
+  district?: string;
   isNew?: boolean;
 }
 
@@ -110,4 +130,3 @@ export interface HistoryRecord {
   advisorName?: string;
   documentUrl?: string;
 }
-
