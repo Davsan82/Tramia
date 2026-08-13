@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import AppVersion from './AppVersion';
 import {
   ArrowRight,
   CarFront,
@@ -330,7 +331,7 @@ export default function HomeView({
 
       <footer className="bg-[#061735] text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div><p className="text-2xl font-black tracking-tight">Tram<span className="text-cyan-400">IA</span></p><p className="mt-2 text-sm text-slate-300">Trámites claros, simples y acompañados.</p></div>
+          <div><p className="text-2xl font-black tracking-tight">Tram<span className="text-cyan-400">IA</span></p><p className="mt-2 text-sm text-slate-300">Trámites claros, simples y acompañados.</p><AppVersion className="mt-2 block text-[10px] font-semibold tracking-wide text-slate-500" /></div>
           <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-slate-300" aria-label="Información institucional">
             <a href="/sobre-tramia" onClick={(event) => { event.preventDefault(); onOpenInstitutional?.('about'); }} className="hover:text-white">Sobre TramIA</a><a href="/privacidad" onClick={(event) => { event.preventDefault(); onOpenPrivacy?.(); }} className="hover:text-white">Privacidad</a><a href="/terminos" onClick={(event) => { event.preventDefault(); onOpenInstitutional?.('terms'); }} className="hover:text-white">Términos de uso</a><a href="/api/docs" target="_blank" rel="noopener noreferrer" className="hover:text-white">API y Swagger</a><a href="/contacto" onClick={(event) => { event.preventDefault(); onOpenInstitutional?.('contact'); }} className="hover:text-white">Contacto</a>
           </nav>

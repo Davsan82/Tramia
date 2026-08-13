@@ -7,6 +7,17 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-12
+
+### Added
+
+- Indicador discreto de versión en el footer y en el menú del usuario.
+
+### Changed
+
+- La versión visible se obtiene automáticamente desde `package.json` durante el build.
+- README actualizado para reflejar la arquitectura, configuración, seguridad, funcionalidades y roadmap reales.
+
 ## [0.2.0] - 2026-08-12
 
 ### Added
@@ -38,6 +49,7 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Davsan82/Tramia/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Davsan82/Tramia/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Davsan82/Tramia/releases/tag/v0.1.0

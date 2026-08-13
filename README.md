@@ -2,261 +2,230 @@
 
 > Un copiloto digital para entender, organizar y dar seguimiento a trámites en el Perú.
 
-TramIA es un prototipo de plataforma web asistida por inteligencia artificial que busca reducir el tiempo, el estrés y la confusión asociados a los trámites públicos y privados. La experiencia transforma una necesidad expresada en lenguaje cotidiano —por ejemplo, “perdí mi DNI” o “quiero formalizar mi negocio”— en orientación clara, requisitos comprensibles y un flujo de trabajo paso a paso.
+TramIA transforma necesidades expresadas en lenguaje cotidiano en información clara, requisitos y rutas paso a paso. El proyecto nació dentro de **LegalIA, un venture de UTEC**, y está evolucionando desde un mockup creado en Google AI Studio hacia una aplicación web funcional.
 
-El proyecto nació dentro de **LegalIA, un venture de UTEC**, a partir de una idea central: las personas no deberían necesitar conocer el nombre oficial de un trámite para saber cómo empezar.
+La aplicación pública se encuentra en [tramia.netlify.app](https://tramia.netlify.app/).
 
-## El problema
+## Estado del producto
 
-Realizar un trámite suele implicar navegar portales institucionales complejos, interpretar requisitos ambiguos y coordinar pasos distribuidos entre distintas entidades. Entre los principales dolores identificados se encuentran:
+TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada oficialmente con entidades del Estado peruano.
 
-- No saber qué documentos se necesitan ni en qué formato.
-- Descubrir requisitos faltantes después de acudir a una entidad.
-- Consultar páginas institucionales difíciles de navegar o desactualizadas.
-- Perder tiempo en filas, traslados y pasos que podrían anticiparse.
-- Temor a cometer errores que invaliden el trámite o generen multas.
-- No conocer el avance, costo o duración esperada del proceso.
+### Funcional
 
-## La propuesta
+- Catálogo de trámites, categorías, requisitos y pasos consultado desde Neon.
+- Búsqueda por texto y filtros por categoría.
+- Fichas informativas con fuente oficial, tiempos, costos referenciales y dificultad.
+- Registro con usuario, correo, contraseña y celular.
+- Inicio y cierre de sesión mediante cookie segura `HttpOnly`.
+- Cierre automático luego de 15 minutos de inactividad.
+- Verificación de correo mediante enlaces de uso único.
+- Recuperación de acceso sin bloquear la contraseña vigente hasta confirmar el cambio.
+- Perfil persistente y validación de DNI mediante PeruDevs desde el servidor.
+- Departamentos, provincias y distritos en selectores dependientes.
+- Vista de trámites del usuario e historial consultados desde Neon.
+- Formulario de contacto almacenado en Neon y enviado por SMTP.
+- API Express, especificación OpenAPI y Swagger en `/api/docs`.
+- Eventos personalizados para Google Analytics 4.
+- Versionado Semántico, CI y releases automatizados con GitHub Actions.
 
-TramIA organiza la experiencia alrededor de tres capacidades:
+### Demostrativo o pendiente
 
-1. **Orientar:** ayuda a identificar el trámite y explica qué hacer.
-2. **Gestionar:** convierte el proceso en requisitos y actividades ordenadas.
-3. **Dar seguimiento:** permite registrar avances, documentos y próximos pasos.
-
-El “átomo” de TramIA es el ciclo completo que comienza con una pregunta y termina con un trámite cerrado: entender la necesidad, construir un plan concreto y acompañar al usuario durante su ejecución.
-
-## Estado actual
-
-### Sistema visual
-
-La interfaz actual constituye la **versión clara oficial**. El proyecto deja preparado un contrato de tokens semánticos para incorporar en el futuro una versión oscura sin duplicar componentes. Las reglas y decisiones se documentan en [`docs/THEMING.md`](docs/THEMING.md).
-
-Este repositorio contiene un **MVP/prototipo demostrativo**, no un sistema gubernamental ni una plataforma lista para producción.
-
-Actualmente incluye:
-
-- Exploración de trámites por búsqueda, categorías y objetivos.
-- Fichas con requisitos, pasos, costos y tiempos estimados.
-- Modalidad autónoma o delegada para representar dos rutas de servicio.
-- Panel de trámites activos, progreso e historial.
-- Checklist interactivo y carga de documentos.
-- Validación documental simulada; la integración con un proveedor de IA está pendiente.
-- Asistente conversacional contextual dentro del trámite.
-- Recordatorios de vencimiento y simulación de renovación.
-- Perfil, registro e inicio de sesión simulados en el navegador.
-- Instrumentación de eventos con Google Analytics 4.
+- El inicio, checklist y avance completo de un trámite todavía conservan partes en `localStorage`.
+- La carga de documentos a almacenamiento de objetos está pendiente.
+- La validación documental con IA es una simulación y no constituye revisión oficial.
+- La delegación, asignación de asesores y los pagos son demostrativos.
+- No se presentan solicitudes automáticamente ante entidades públicas.
+- No existe firma digital ni login social OAuth.
 
 > [!WARNING]
-> La autenticación, los pagos, las integraciones con entidades públicas y varias operaciones del flujo son simulaciones. No utilices el prototipo con contraseñas reales, documentos sensibles ni datos personales reales.
+> No ingreses Clave SOL, PAN, CVV, contraseñas de entidades ni documentos sensibles en funciones demostrativas. TramIA no almacena ni debe solicitar la Clave SOL.
 
-## Investigación con usuarios
+## Arquitectura
 
-Una prueba inicial con 11 participantes validó el interés por la propuesta y, al mismo tiempo, reveló áreas críticas de mejora:
-
-- **91%** (10 de 11) calificó la experiencia con 4 o 5 puntos.
-- **82%** (9 de 11) indicó que usaría TramIA para un trámite real.
-- Comprender los requisitos fue la barrera principal.
-- El checklist fue una de las capacidades mejor valoradas.
-- La sobrecarga de información redujo la claridad de algunas pantallas.
-- Los errores funcionales afectaron más la confianza que los detalles estéticos.
-- Los usuarios esperan completar cada vez más pasos sin salir de la plataforma.
-
-Estos resultados orientan la evolución del producto hacia tres prioridades: una experiencia más simple, un checklist confiable y flujos libres de errores funcionales.
-
-## Flujo conceptual
+TramIA utiliza una aplicación web y API integradas en el mismo repositorio:
 
 ```mermaid
 flowchart LR
-    A["Necesidad en lenguaje cotidiano"] --> B["Identificación del trámite"]
-    B --> C["Requisitos y plan paso a paso"]
-    C --> D["Gestión del progreso"]
-    D --> E["Validación y acompañamiento"]
-    E --> F["Trámite completado"]
+    UI["React + Vite"] --> API["Express API"]
+    API --> DB["Neon PostgreSQL"]
+    API --> MAIL["Gmail SMTP"]
+    API --> DNI["PeruDevs"]
+    NETLIFY["Netlify"] --> UI
+    NETLIFY --> API
 ```
-
-## Tecnologías
-
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS 4
-- Express
-- Neon Serverless Postgres
-- Google Gen AI SDK
-- Motion
-- Lucide React
-- Google Analytics 4 y Google Tag Manager
-
-## Arquitectura actual
 
 ```text
 tramia-v5.1/
-├── index.html                 # Entrada HTML y etiquetas de analítica
-├── server.ts                  # Servidor Express y validación documental
-├── server/                    # Infraestructura del backend
-│   └── db.ts                 # Conexión segura a Neon Postgres
+├── src/                       # Aplicación React y componentes
+├── server.ts                 # Endpoints Express
+├── server/
+│   ├── db/                   # Schema y cliente Drizzle/Neon
+│   ├── repositories/         # Consultas de dominio
+│   ├── services/             # Autenticación y servicios
+│   └── openapi.ts            # Contrato OpenAPI
 ├── database/
-│   ├── migrations/           # Migraciones SQL versionadas
-│   └── README.md             # Convenciones de base de datos
-├── src/
-│   ├── App.tsx               # Estado y navegación principal
-│   ├── data.ts               # Catálogo y datos demostrativos
-│   ├── types.ts              # Modelos TypeScript
-│   ├── components/           # Vistas y componentes de la experiencia
-│   └── utils/analytics.ts    # Envío de eventos de analítica
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+│   ├── migrations/           # Migraciones versionadas
+│   └── seed.ts               # Datos iniciales del catálogo
+├── netlify/functions/api.ts  # Adaptador serverless
+├── docs/                      # Decisiones y guías del proyecto
+├── netlify.toml
+└── package.json
 ```
 
-El frontend conserva temporalmente usuarios, sesión y progreso en `localStorage`. El único endpoint propio implementado actualmente es `POST /api/validate-document`; el contrato de una API completa descrito durante el diseño todavía pertenece al roadmap.
+El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usuario se modelan en PostgreSQL mediante Drizzle. Algunas pantallas heredadas todavía leen progreso demostrativo local; su migración completa a Neon es el siguiente bloque prioritario.
 
-## Ejecución local
+## Tecnologías
+
+- React 19, TypeScript y Vite
+- Tailwind CSS 4, Motion y Lucide React
+- Express y funciones serverless de Netlify
+- Neon Serverless Postgres
+- Drizzle ORM y Drizzle Kit
+- Nodemailer con Gmail SMTP
+- Google Analytics 4 y Google Tag Manager
+
+## Desarrollo local
 
 ### Requisitos
 
-- Node.js 20 o superior
+- Node.js 22 recomendado
 - npm
-- No se requiere una clave de IA mientras la integración permanezca desactivada
 - Una base PostgreSQL en Neon
 
 ### Instalación
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone <URL_PRIVADA_DEL_REPOSITORIO>
 cd tramia-v5.1
 npm install
 ```
 
-### Configuración
-
-Copia `.env.example` como `.env` y configura la conexión de Neon:
+Copia `.env.example` como `.env` y completa las variables del servidor. Nunca uses el prefijo `VITE_` para secretos.
 
 ```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
-PORT="3000"
+DATABASE_URL="postgresql://USER:PASSWORD@POOLER_HOST/neondb?sslmode=require"
+DATABASE_DIRECT_URL="postgresql://USER:PASSWORD@DIRECT_HOST/neondb?sslmode=require"
+APP_URL="http://localhost:3000"
+SESSION_SECRET="VALOR_ALEATORIO_LARGO"
+DATA_ENCRYPTION_KEY="OTRO_VALOR_ALEATORIO_LARGO"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="465"
+SMTP_SECURE="true"
+SMTP_USER="correo@gmail.com"
+SMTP_APP_PASSWORD="CLAVE_DE_APLICACION"
+MAIL_FROM="TramIA Soporte <correo@gmail.com>"
+SUPPORT_EMAIL="correo@gmail.com"
+PERUDEVS_API_KEY="TOKEN_PRIVADO"
+PERUDEVS_BASE_URL="https://api.perudevs.com/api/v1"
 ```
 
-`DATABASE_URL` es un secreto del servidor. Nunca debe utilizar el prefijo
-`VITE_` ni incluirse en el repositorio.
+Inicia la aplicación:
 
-La integración con Gemini está desactivada temporalmente y no se necesita una
-API key. El prototipo utiliza resultados simulados que sirven únicamente para
-demostración y no constituyen una validación documental real.
-
-La aplicación estará disponible en:
-
-```text
-http://localhost:3000
+```bash
+npm run dev
 ```
 
-Puedes comprobar la conexión con Neon en:
+En Windows/PowerShell también puedes usar:
 
-```text
-GET http://localhost:3000/api/health
+```powershell
+npm.cmd run dev
 ```
+
+Abre `http://localhost:3000`. La salud del backend se consulta en `/api/health` y Swagger en `/api/docs`.
+
+## Base de datos
+
+```bash
+npm run db:check
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+```
+
+- Usa `DATABASE_URL` con pooler durante la ejecución.
+- Usa `DATABASE_DIRECT_URL` para migraciones.
+- Revisa las migraciones generadas antes de ejecutarlas en producción.
+- El seed debe ejecutarse conscientemente; no forma parte automática de cada deploy.
 
 ## Publicación en Netlify
 
-El repositorio incluye `netlify.toml` y una función serverless que expone la API
-Express bajo `/api/*`. En Netlify configura:
+`netlify.toml` configura el build, el directorio `dist`, las funciones y los redirects de la SPA/API. El sitio existente está conectado a `main`, por lo que cada push dispara un deploy automático.
 
-- comando de build: `npm run build`;
-- directorio publicado: `dist`;
-- directorio de funciones: `netlify/functions`;
-- variable privada `DATABASE_URL` con la conexión de Neon;
-- más adelante, las variables privadas del proveedor de IA seleccionado.
+Variables privadas requeridas en Netlify:
 
-Las tres primeras opciones ya se leen automáticamente desde `netlify.toml`. Las
-variables privadas deben agregarse en **Project configuration > Environment
-variables** y estar disponibles para Functions. Netlify no toma los secretos del
-archivo `.env` local.
+- `APP_URL`
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `DATA_ENCRYPTION_KEY`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_APP_PASSWORD`
+- `MAIL_FROM`, `SUPPORT_EMAIL`
+- `PERUDEVS_API_KEY`, `PERUDEVS_BASE_URL`
 
-Después del despliegue verifica:
-
-```text
-https://tramia.netlify.app/
-https://tramia.netlify.app/api/health
-```
-
-El segundo endpoint debe responder con `status: "ok"`. Un estado `degraded`
-indica que falta `DATABASE_URL` o que la función no puede conectarse a Neon.
+Cuando un commit agregue una variable o migración, debe indicarse expresamente en las notas de entrega. Los cambios que solo modifican frontend o lógica existente se publican sin configuración manual adicional.
 
 ## Scripts
 
 | Comando | Descripción |
 | --- | --- |
-| `npm run dev` | Inicia Express y Vite en modo desarrollo. |
-| `npm run lint` | Ejecuta la comprobación de TypeScript sin emitir archivos. |
-| `npm run build` | Genera el frontend y empaqueta el servidor en `dist/`. |
-| `npm start` | Ejecuta el servidor compilado. |
-| `npm run preview` | Previsualiza directamente el build de Vite. |
-| `npm run release:patch` | Verifica el proyecto y crea el siguiente tag de corrección. |
-| `npm run release:minor` | Verifica el proyecto y crea el siguiente tag de funcionalidad. |
-| `npm run release:major` | Verifica el proyecto y crea el siguiente tag mayor. |
+| `npm run dev` | Inicia Express y Vite para desarrollo. |
+| `npm run lint` | Comprueba TypeScript sin emitir archivos. |
+| `npm run build` | Genera el frontend y empaqueta el servidor. |
+| `npm start` | Ejecuta el build del servidor. |
+| `npm run db:check` | Valida el historial de Drizzle. |
+| `npm run db:migrate` | Ejecuta migraciones pendientes. |
+| `npm run db:seed` | Carga los datos maestros iniciales. |
+| `npm run security:check` | Busca secretos comprometidos en archivos versionados. |
+| `npm run version:check -- vX.Y.Z` | Comprueba la correspondencia entre tag y paquete. |
+| `npm run release:patch` | Prepara una corrección compatible. |
+| `npm run release:minor` | Prepara una versión con funcionalidad nueva. |
+| `npm run release:major` | Prepara un cambio mayor. |
 
 ## Versionado y releases
 
-TramIA utiliza [Versionado Semántico](https://semver.org/lang/es/) y comienza en la versión `0.1.0`. Los tags de Git siguen el formato `vMAJOR.MINOR.PATCH`, por ejemplo `v0.1.0`.
+TramIA sigue [Versionado Semántico](https://semver.org/lang/es/) y utiliza tags `vMAJOR.MINOR.PATCH`. La versión se obtiene automáticamente desde `package.json` y se muestra discretamente en el footer y en el menú de usuario; no enlaza al repositorio privado.
 
-Al publicar un tag compatible, GitHub Actions:
+Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md) y [CHANGELOG.md](CHANGELOG.md).
 
-1. verifica que el tag coincida con la versión del paquete;
-2. ejecuta TypeScript y el build;
-3. empaqueta el resultado de producción;
-4. crea automáticamente un GitHub Release.
+## Privacidad y seguridad
 
-Consulta [la guía de publicación](docs/RELEASING.md) y el [historial de cambios](CHANGELOG.md).
+- Las contraseñas se almacenan con hash, nunca en texto plano.
+- Las sesiones usan cookies `HttpOnly` y se invalidan al cambiar la contraseña.
+- El DNI completo se cifra; la interfaz solo vuelve a mostrar sus últimos dígitos.
+- Las claves de SMTP, Neon y PeruDevs permanecen exclusivamente en el servidor.
+- La recuperación de acceso no revela si un correo está registrado.
+- No se deben enviar datos personales a Google Analytics.
+- Los pagos futuros usarán tokenización; TramIA no guardará PAN ni CVV.
 
 ## Analítica
 
-El prototipo registra eventos de exploración y avance, entre ellos:
+La aplicación registra eventos de navegación, búsqueda, revisión de trámites y autenticación. Los eventos personalizados aparecen primero en Tiempo real/DebugView y posteriormente en los informes procesados de GA4.
 
-- búsquedas realizadas;
-- trámites revisados;
-- elección de modalidad autónoma o delegada;
-- creación e inicio de sesión de cuentas simuladas;
-- documentación, pago y finalización de trámites.
+## Roadmap inmediato
 
-No deben enviarse a Google Analytics nombres, DNI, correos, teléfonos, documentos ni términos de búsqueda que contengan información personal.
-
-## Alcance y limitaciones
-
-- No existe integración en tiempo real con RENIEC, SUNAT, SUNARP, MTC u otras entidades.
-- No se presentan documentos automáticamente ante instituciones externas.
-- No existe firma digital ni verificación oficial de identidad.
-- Los pagos y la delegación de trámites son flujos demostrativos.
-- El login social no implementa OAuth real.
-- Los datos se almacenan localmente en el navegador.
-- La validación con IA es experimental y no reemplaza una revisión oficial o profesional.
-- La información de requisitos debe verificarse siempre en las fuentes oficiales correspondientes.
-
-## Roadmap
-
-- [ ] Simplificar la interfaz según los hallazgos de investigación.
-- [ ] Implementar autenticación y persistencia seguras en backend.
-- [ ] Separar los datos y trámites por usuario autenticado.
-- [ ] Eliminar aprobaciones simuladas para documentos reales.
-- [ ] Añadir validación estricta de archivos, autenticación y límites de uso al API.
-- [ ] Mejorar la explicación de requisitos y formatos documentales.
-- [ ] Incorporar un diagnóstico conversacional con preguntas de clarificación.
-- [ ] Implementar alertas y seguimiento persistente.
+- [x] Catálogo y maestros en Neon.
+- [x] Autenticación, verificación de correo y recuperación de acceso.
+- [x] Perfil y validación de DNI desde backend.
+- [x] Formulario de contacto persistente y correo de soporte.
+- [x] CI, versionado y releases.
+- [ ] Persistir en Neon el inicio, checklist y avance completo de cada trámite.
+- [ ] Implementar reglas de cancelación y trazabilidad de estados.
+- [ ] Cargar documentos en Netlify Blobs u otro object storage.
+- [ ] Crear el panel administrativo y roles.
+- [ ] Implementar asesores, delegación y pago tokenizado/simulado.
+- [ ] Incorporar alertas persistentes y notificaciones.
+- [ ] Sustituir la validación de IA simulada por un proveedor seleccionado.
 - [ ] Añadir pruebas unitarias, de integración y end-to-end.
-- [ ] Consolidar la taxonomía de eventos de analítica.
-- [ ] Realizar una auditoría de accesibilidad y experiencia mobile-first.
+- [ ] Completar auditorías de accesibilidad, seguridad y experiencia mobile-first.
 
 ## Contribución
 
-El proyecto se encuentra en evolución. Antes de abrir un pull request:
-
 1. Crea una rama descriptiva.
-2. Mantén la interfaz y los mensajes en español de Perú.
-3. No agregues afirmaciones de integración oficial que el código no implemente.
-4. Ejecuta `npm run lint` y `npm run build`.
-5. Describe claramente qué parte es funcional y qué parte continúa siendo simulada.
+2. Mantén la interfaz y los mensajes en español de Perú y Latinoamérica.
+3. No afirmes integraciones oficiales que el código no implemente.
+4. No incluyas secretos ni datos personales en commits.
+5. Ejecuta `npm run security:check`, `npm run lint`, `npm run db:check` y `npm run build`.
+6. Documenta si el cambio requiere variables, migraciones o configuración posterior al deploy.
 
 ## Aviso
 
-TramIA no representa ni está afiliada oficialmente con entidades del Estado peruano. La información mostrada por este prototipo es referencial y debe contrastarse con los portales oficiales antes de realizar cualquier trámite.
+La información de los trámites es referencial y debe contrastarse con sus fuentes oficiales antes de presentar solicitudes o realizar pagos.
