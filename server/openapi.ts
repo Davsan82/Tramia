@@ -2,7 +2,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'TramIA API',
-    version: '0.5.0',
+    version: '0.5.1',
     description: 'API pública versionada para el catálogo y los futuros expedientes de TramIA.',
   },
   servers: [

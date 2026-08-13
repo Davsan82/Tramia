@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1] - 2026-08-13
+
+### Corregido
+
+- Eliminado el bucle infinito del módulo “Contenido y canales”.
+- Configuración administrativa ahora muestra errores y permite reintentar.
+- Navegación entre módulos sin recargas completas ni parámetros atascados.
+
+### Mejorado
+
+- Shell administrativo inspirado en los patrones de AdminLTE, conservando Tailwind y la identidad de TramIA.
+
 ## [0.5.0] - 2026-08-13
 
 ### Agregado

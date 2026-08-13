@@ -75,7 +75,14 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
     | "audit"
     | "settings"
     | "finance"
-  >(() => {const requested=new URLSearchParams(location.search).get("module");return requested==="settings"?"settings":requested==="finance"?"finance":"dashboard"});
+  >(() => {
+    const requested = new URLSearchParams(location.search).get("module");
+    return requested === "settings"
+      ? "settings"
+      : requested === "finance"
+        ? "finance"
+        : "dashboard";
+  });
   const load = async () => {
     setLoading(true);
     setError("");
@@ -101,36 +108,15 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    history.replaceState(
+      {},
+      "",
+      module === "dashboard" ? "/admin" : `/admin?module=${module}`,
+    );
+  }, [module]);
   if (authRequired)
     return <AdminLoginView onSuccess={() => void load()} onExit={onExit} />;
-  if (module === "settings")
-    return (
-      <div className="min-h-screen bg-[#f5f3ff] text-slate-950">
-        <header className="border-b border-violet-100 bg-white">
-          <div className="mx-auto flex min-h-17 max-w-5xl items-center px-5">
-            <TramIALogo
-              iconSize={31}
-              textSize="text-xl"
-              variant="light"
-              onClick={onExit}
-            />
-            <span className="ml-4 rounded-full bg-violet-100 px-3 py-1 text-[10px] font-black uppercase text-violet-700">
-              Configuración
-            </span>
-            <button
-              onClick={() => setModule("dashboard")}
-              className="ml-auto rounded-xl border border-violet-200 px-4 py-2 text-xs font-black text-violet-700"
-            >
-              Volver
-            </button>
-          </div>
-        </header>
-        <main className="p-5 sm:p-8">
-          <AdminSettingsView />
-        </main>
-      </div>
-    );
-  if (module === "finance") return <div className="min-h-screen bg-[#f5f3ff] text-slate-950"><header className="border-b border-violet-100 bg-white"><div className="mx-auto flex min-h-17 max-w-7xl items-center px-5"><TramIALogo iconSize={31} textSize="text-xl" variant="light" onClick={onExit}/><span className="ml-4 rounded-full bg-violet-100 px-3 py-1 text-[10px] font-black uppercase text-violet-700">Control y reportes</span><button onClick={()=>setModule('dashboard')} className="ml-auto rounded-xl border border-violet-200 px-4 py-2 text-xs font-black text-violet-700">Volver</button></div></header><main className="mx-auto max-w-7xl p-5 sm:p-8"><AdminFinanceView/></main></div>;
   if (authRequired)
     return (
       <div className="min-h-screen bg-slate-100 text-slate-950">
@@ -193,7 +179,11 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
                       ? "Operación"
                       : module === "audit"
                         ? "Auditoría"
-                        : "Asesores"}
+                        : module === "settings"
+                          ? "Configuración"
+                          : module === "finance"
+                            ? "Control y reportes"
+                            : "Asesores"}
             </span>
             <button
               onClick={() => setModule("dashboard")}
@@ -204,6 +194,7 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
           </div>
         </header>
         <main className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+          <AdminModuleNav active={module} change={setModule} />
           {module === "catalog" ? (
             <AdminCatalogView />
           ) : module === "users" ? (
@@ -214,6 +205,10 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
             <AdminOperationsView />
           ) : module === "audit" ? (
             <AdminAuditView />
+          ) : module === "settings" ? (
+            <AdminSettingsView />
+          ) : module === "finance" ? (
+            <AdminFinanceView />
           ) : (
             <AdminAdvisorsView />
           )}
@@ -385,6 +380,18 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
                         text="Perfiles, capacidad y asignaciones"
                         onClick={() => setModule("advisors")}
                       />
+                      <Module
+                        icon={Settings}
+                        title="Contenido y canales"
+                        text="Contacto, landing y visibilidad"
+                        onClick={() => setModule("settings")}
+                      />
+                      <Module
+                        icon={ShieldCheck}
+                        title="Control y reportes"
+                        text="Pagos, calificaciones e indicadores"
+                        onClick={() => setModule("finance")}
+                      />
                     </div>
                   </AdminCard>
                   <div className="rounded-3xl bg-slate-950 p-5 text-white">
@@ -405,6 +412,41 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
         )}
       </main>
     </div>
+  );
+}
+function AdminModuleNav({
+  active,
+  change,
+}: {
+  active: string;
+  change: (value: any) => void;
+}) {
+  const items = [
+    ["dashboard", "Resumen"],
+    ["catalog", "Contenido"],
+    ["operations", "Operaciones"],
+    ["advisors", "Asesores"],
+    ["users", "Usuarios"],
+    ["contact", "Contacto"],
+    ["finance", "Control"],
+    ["settings", "Configuración"],
+    ["audit", "Auditoría"],
+  ];
+  return (
+    <nav
+      className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-violet-100 bg-white p-2 shadow-sm"
+      aria-label="Módulos administrativos"
+    >
+      {items.map(([id, label]) => (
+        <button
+          key={id}
+          onClick={() => change(id)}
+          className={`min-h-10 shrink-0 rounded-xl px-4 text-xs font-black transition ${active === id ? "bg-violet-700 text-white shadow" : "text-slate-600 hover:bg-violet-50 hover:text-violet-800"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
   );
 }
 function Metric({
@@ -486,17 +528,6 @@ function Module({
           <p className="mt-1 text-[11px] leading-4 text-slate-500">{text}</p>
         </div>
       </C>
-      {title === "Asesores y delegaciones" && (
-        <><button onClick={() => location.assign("/admin?module=settings")} className="flex w-full gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-3 text-left text-violet-800">
-          <Settings className="mt-0.5 shrink-0" size={18} />
-          <div>
-            <p className="text-xs font-black">Configuración general</p>
-            <p className="mt-1 text-[11px]">
-              Canales de atención y datos públicos
-            </p>
-          </div>
-        </button><button onClick={() => location.assign("/admin?module=finance")} className="flex w-full gap-3 rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-3 text-left text-fuchsia-800"><ShieldCheck className="mt-0.5 shrink-0" size={18}/><div><p className="text-xs font-black">Control y reportes</p><p className="mt-1 text-[11px]">Pagos, calificaciones e indicadores</p></div></button></>
-      )}
     </>
   );
 }
