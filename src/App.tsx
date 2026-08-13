@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import Topbar from './components/Topbar';
 import HomeView from './components/HomeView';
 import PrivacyView from './components/PrivacyView';
@@ -7,6 +7,8 @@ import TermsView from './components/TermsView';
 import ContactView from './components/ContactView';
 import EmailVerificationView from './components/EmailVerificationView';
 import PasswordResetView from './components/PasswordResetView';
+const AdminDashboardView=lazy(()=>import('./components/AdminDashboardView'));
+const AdvisorPortalView=lazy(()=>import('./components/AdvisorPortalView'));
 import CatalogView from './components/CatalogView';
 import PanelView from './components/PanelView';
 import SearchView from './components/SearchView';
@@ -19,12 +21,14 @@ import LoginView from './components/LoginView';
 import DocumentValidationView from './components/DocumentValidationView';
 import { trackEvent } from './utils/analytics';
 
-import { INITIAL_ACTIVE_PROCEDURES, EXPIRATION_REMINDERS } from './data';
+import { EXPIRATION_REMINDERS } from './data';
 import { loadProcedureCatalog } from './services/catalog';
 import { Procedure, ActiveProcedure, ExpirationReminder, Requirement, UserProfile } from './types';
 import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ShieldCheck, ChevronRight } from 'lucide-react';
 
 export default function App() {
+  if (window.location.pathname === '/admin') return <Suspense fallback={<div className="grid min-h-screen place-items-center font-bold text-blue-700">Cargando administración…</div>}><AdminDashboardView onExit={() => { window.location.assign('/'); }} /></Suspense>;
+  if (window.location.pathname === '/asesor') return <Suspense fallback={<div className="grid min-h-screen place-items-center font-bold text-blue-700">Cargando portal…</div>}><AdvisorPortalView onExit={() => { window.location.assign('/'); }} /></Suspense>;
   const [procedures, setProcedures] = useState<Procedure[]>([]);
 
   useEffect(() => {
@@ -63,29 +67,13 @@ export default function App() {
   // Mobile sidebar visibility state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Reminders and active procedures with localStorage persistence
-  const [activeProcedures, setActiveProcedures] = useState<ActiveProcedure[]>(() => {
-    try {
-      const saved = localStorage.getItem('tramia_active_procedures');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_ACTIVE_PROCEDURES;
-  });
+  // Estado transitorio del flujo heredado. La fuente persistente del usuario es Neon.
+  const [activeProcedures, setActiveProcedures] = useState<ActiveProcedure[]>([]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('tramia_active_procedures', JSON.stringify(activeProcedures));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [activeProcedures]);
+    // Elimina progresos demo guardados por versiones anteriores sin tocar Analytics.
+    localStorage.removeItem('tramia_active_procedures');
+  }, []);
 
   // Derived filtered procedures for "En proceso" (< 100%) and "Historial" (=== 100%)
   const inProgressProcedures = useMemo(() => {
@@ -211,7 +199,26 @@ export default function App() {
   };
 
   // Actually finalize starting the procedure once the choice (Hazlo tú mismo or Delegar) has been selected
-  const handleFinalizeProcedureStart = (proc: Procedure, isDelegated: boolean) => {
+  const handleFinalizeProcedureStart = async (proc: Procedure, isDelegated: boolean) => {
+    try {
+      const response = await fetch('/api/v1/my-procedures', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ procedureId: proc.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'No pudimos iniciar este trámite.');
+      if (isDelegated) {
+        const delegationResponse = await fetch(`/api/v1/my-procedures/${payload.data.id}/delegation`, {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const delegationPayload = await delegationResponse.json().catch(() => ({}));
+        if (!delegationResponse.ok) throw new Error(delegationPayload.message || 'No pudimos preparar la delegación.');
+      }
+    } catch (error) {
+      setToastMessage({ title: 'No pudimos iniciar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
+      return;
+    }
     setIsDelegatedSelected(isDelegated);
     if (isDelegated) {
       trackEvent('tramite_delegado_elegido', {
@@ -389,6 +396,16 @@ export default function App() {
         setActiveProcedures([newActive, ...activeProcedures]);
       }
 
+      void fetch(`/api/v1/my-procedures/by-procedure/${proc.id}/progress`, {
+        method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progressPercentage: pctToUse, currentStepId: stepId, completedStepIds: completedStepIdsParam || [] }),
+      }).then(async response => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          console.warn('[procedure-progress]', payload.message || response.statusText);
+        }
+      }).catch(error => console.warn('[procedure-progress]', error));
+
       if (!isQuiet) {
         setToastMessage({
           title: isDelegated ? "¡Trámite Delegado!" : "Trámite registrado",
@@ -413,7 +430,7 @@ export default function App() {
   };
 
   // Find procedure details by ID to allow easy checklist jump
-  const handleSelectProcedureById = (procedureId: string) => {
+  const handleSelectProcedureById = async (procedureId: string) => {
     const found = procedures.find(p => p.id === procedureId);
     if (found) {
       // Find custom requirements from active states if any
@@ -427,9 +444,20 @@ export default function App() {
           completedStepIds: activeCopy.completedStepIds || []
         } as any);
       } else {
+        let persistedWorkspace: any = null;
+        if (userProfile) {
+          try {
+            const response = await fetch(`/api/v1/my-procedures/by-procedure/${procedureId}/workspace`, { credentials: 'include' });
+            if (response.ok) persistedWorkspace = await response.json();
+          } catch (error) {
+            console.warn('[procedure-workspace]', error);
+          }
+        }
+        const persistedRequirements = new Map<string, string>((persistedWorkspace?.requirements || []).map((item: any) => [item.requirementId, item.status]));
+        const statusLabels: Record<string, Requirement['status']> = { approved: 'Aprobado', rejected: 'Corregir', uploaded: 'Validando', validating: 'Validando', pending: 'Pendiente' };
         const cleanRequirements: Requirement[] = found.requirements.map(r => ({
           ...r,
-          status: 'Pendiente',
+          status: statusLabels[persistedRequirements.get(r.id) || 'pending'] || 'Pendiente',
           uploadedFileName: undefined,
           feedbackMessage: undefined,
           imageQuality: undefined,
@@ -438,18 +466,20 @@ export default function App() {
           isValidated: false
         }));
 
+        const completedStepIds: string[] = persistedWorkspace?.completedStepIds || [];
         const cleanSteps = found.steps.map(s => ({
           ...s,
-          status: 'PENDIENTE' as const
+          status: completedStepIds.includes(s.id) ? 'COMPLETADO' as const : 'PENDIENTE' as const
         }));
 
         setSelectedProcedure({
           ...found,
           steps: cleanSteps,
           requirements: cleanRequirements,
-          completedStepIds: [],
-          currentStepId: cleanSteps[0]?.id || 'step-1'
+          completedStepIds,
+          currentStepId: persistedWorkspace?.instance?.currentStepId || cleanSteps[0]?.id || 'step-1'
         } as any);
+        setIsDelegatedSelected(Boolean(persistedWorkspace?.instance?.mode && persistedWorkspace.instance.mode !== 'self_service'));
       }
       setCurrentTab('proceso');
       setInicioSubView('workspace');
@@ -461,7 +491,7 @@ export default function App() {
     }
   };
 
-  const handleDeleteActiveProcedure = (procedureId: string) => {
+  const handleDeleteActiveProcedure = async (procedureId: string) => {
     const target = activeProcedures.find(ap => ap.procedureId === procedureId);
     if (target) {
       if (target.isDelegated) {
@@ -477,6 +507,21 @@ export default function App() {
       }
     }
 
+    try {
+      const cancel = (acknowledgeNoRefund = false) => fetch(`/api/v1/my-procedures/by-procedure/${procedureId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Cancelado por el usuario desde su espacio de trabajo.', acknowledgeNoRefund }) });
+      let response = await cancel();
+      let payload = await response.json().catch(() => ({}));
+      if (response.status === 409 && payload.error === 'cancellation_acknowledgement_required') {
+        const confirmed = window.confirm(`${payload.message}\n\n¿Deseas cancelar el trámite de todas maneras?`);
+        if (!confirmed) return;
+        response = await cancel(true);
+        payload = await response.json().catch(() => ({}));
+      }
+      if (!response.ok) throw new Error(payload.message || 'No pudimos cancelar este trámite.');
+    } catch (error) {
+      setToastMessage({ title: 'No pudimos cancelar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
+      return;
+    }
     setActiveProcedures(prev => prev.filter(ap => ap.procedureId !== procedureId));
     setSelectedProcedure(null);
     setInicioSubView('home');

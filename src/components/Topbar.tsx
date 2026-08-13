@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Clock3, FileText, History, Home, LogIn, LogOut, User, UserPlus } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, Clock3, FileText, History, Home, LogIn, LogOut, ShieldCheck, User, UserPlus } from 'lucide-react';
 import { ExpirationReminder, UserProfile } from '../types';
 import AppVersion from './AppVersion';
 import TramIALogo from './TramIALogo';
@@ -21,6 +21,8 @@ export default function Topbar({profile,onTriggerLogin,currentTab,setCurrentTab,
         {open&&<div className="absolute right-0 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"><div className="bg-[linear-gradient(120deg,#071a3d,#0e55c7)] p-4 text-white"><p className="text-sm font-black">{profile.fullName}</p><p className="mt-1 truncate text-xs text-blue-100">{profile.email}</p></div><div className="p-2">
           <button onClick={()=>go('perfil')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold hover:bg-blue-50"><User size={17} className="text-blue-600"/> Ver mi perfil</button>
           <button onClick={()=>go('historial')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold hover:bg-blue-50"><History size={17} className="text-blue-600"/> Historial de trámites</button>
+          {profile.roles?.includes('administrator')&&<button onClick={()=>window.location.assign('/admin')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold text-blue-700 hover:bg-blue-50"><ShieldCheck size={17}/> Panel administrativo</button>}
+          {profile.roles?.includes('advisor')&&<button onClick={()=>window.location.assign('/asesor')} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold text-blue-700 hover:bg-blue-50"><BriefcaseBusiness size={17}/> Portal del asesor</button>}
           <div className="my-2 rounded-xl bg-slate-50 p-3"><div className="flex items-center justify-between text-xs"><span className="flex items-center gap-2 font-bold text-slate-600"><Clock3 size={15}/> Cierre por inactividad</span><strong className={sessionRemainingSeconds<120?'text-red-600':'text-blue-700'}>{minutes}:{String(seconds).padStart(2,'0')}</strong></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-600 transition-all" style={{width:`${Math.max(0,Math.min(100,sessionRemainingSeconds/9))}%`}}/></div></div>
           <button onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-black text-red-600 hover:bg-red-50"><LogOut size={17}/> Cerrar sesión</button>
           <div className="border-t border-slate-100 px-3 pb-1 pt-2 text-center"><AppVersion className="text-[10px] font-semibold tracking-wide text-slate-400"/></div>

@@ -1,4 +1,4 @@
-import { Procedure, ActiveProcedure, ExpirationReminder, HistoryRecord, Advisor, TramiteOption } from './types';
+import { Procedure, ExpirationReminder, HistoryRecord, Advisor, TramiteOption } from './types';
 
 export const GESTORES_VERIFICADOS: Advisor[] = [
   {
@@ -511,8 +511,6 @@ export const PROCEDURES: TramiteOption[] = [
 ];
 
 export const LISTA_TRAMITES = PROCEDURES;
-
-export const INITIAL_ACTIVE_PROCEDURES: ActiveProcedure[] = [];
 
 export const EXPIRATION_REMINDERS: ExpirationReminder[] = [];
 

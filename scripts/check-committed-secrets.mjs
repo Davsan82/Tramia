@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
   .split(/\r?\n/)
@@ -19,8 +20,9 @@ for (const file of files) {
     violations.push(`${file}: archivo sensible versionado`);
     continue;
   }
-  const content = execFileSync('git', ['show', `:${file}`], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 })
+  const content = readFileSync(file, 'utf8')
     .replaceAll('postgresql://USER:PASSWORD@HOST', 'postgresql://PLACEHOLDER')
+    .replaceAll('postgresql://USER:PASSWORD@POOLER_HOST', 'postgresql://PLACEHOLDER')
     .replaceAll('postgresql://USER:PASSWORD@DIRECT_HOST', 'postgresql://PLACEHOLDER');
   if (forbiddenContent.some((pattern) => pattern.test(content))) violations.push(`${file}: posible credencial real`);
 }

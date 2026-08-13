@@ -28,9 +28,15 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Eventos personalizados para Google Analytics 4.
 - Versionado Semántico, CI y releases automatizados con GitHub Actions.
 
+### Persistencia operativa
+
+- Inicio, checklist, avance, documentos y conversación de cada trámite mediante API y Neon.
+- Documentos binarios en Netlify Blobs; PostgreSQL conserva únicamente metadatos y claves.
+- Delegaciones, asignaciones y reasignaciones persistentes y auditadas.
+
 ### Demostrativo o pendiente
 
-- El inicio, checklist y avance completo de un trámite todavía conservan partes en `localStorage`.
+- El inicio, checklist y avance completo de un trámite todavía usan estado transitorio en memoria mientras se completa su persistencia en Neon.
 - La carga de documentos a almacenamiento de objetos está pendiente.
 - La validación documental con IA es una simulación y no constituye revisión oficial.
 - La delegación, asignación de asesores y los pagos son demostrativos.
@@ -72,7 +78,7 @@ tramia-v5.1/
 └── package.json
 ```
 
-El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usuario se modelan en PostgreSQL mediante Drizzle. Algunas pantallas heredadas todavía leen progreso demostrativo local; su migración completa a Neon es el siguiente bloque prioritario.
+El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usuario se modelan en PostgreSQL mediante Drizzle. El progreso demo heredado ya no se restaura ni se guarda en `localStorage`; algunas pantallas de ejecución mantienen estado temporal en memoria hasta completar su persistencia en Neon.
 
 ## Tecnologías
 
@@ -85,6 +91,8 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 - Google Analytics 4 y Google Tag Manager
 
 ## Desarrollo local
+
+> **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
 ### Requisitos
 
@@ -112,7 +120,7 @@ SMTP_HOST="smtp.gmail.com"
 SMTP_PORT="465"
 SMTP_SECURE="true"
 SMTP_USER="correo@gmail.com"
-SMTP_APP_PASSWORD="CLAVE_DE_APLICACION"
+SMTP_APP_PASSWORD=""
 MAIL_FROM="TramIA Soporte <correo@gmail.com>"
 SUPPORT_EMAIL="correo@gmail.com"
 PERUDEVS_API_KEY="TOKEN_PRIVADO"
@@ -174,7 +182,9 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 | `npm run db:check` | Valida el historial de Drizzle. |
 | `npm run db:migrate` | Ejecuta migraciones pendientes. |
 | `npm run db:seed` | Carga los datos maestros iniciales. |
+| `npm run admin:assign -- correo@dominio.com` | Asigna de forma explícita el rol administrador a una cuenta existente. |
 | `npm run security:check` | Busca secretos comprometidos en archivos versionados. |
+| `npm run encoding:check` | Verifica UTF-8 y detecta texto potencialmente dañado por mojibake. |
 | `npm run version:check -- vX.Y.Z` | Comprueba la correspondencia entre tag y paquete. |
 | `npm run release:patch` | Prepara una corrección compatible. |
 | `npm run release:minor` | Prepara una versión con funcionalidad nueva. |
@@ -210,7 +220,14 @@ La aplicación registra eventos de navegación, búsqueda, revisión de trámite
 - [ ] Persistir en Neon el inicio, checklist y avance completo de cada trámite.
 - [ ] Implementar reglas de cancelación y trazabilidad de estados.
 - [ ] Cargar documentos en Netlify Blobs u otro object storage.
-- [ ] Crear el panel administrativo y roles.
+- [x] Crear la base protegida del panel administrativo y roles.
+- [x] Implementar CRUD administrativo de categorías y entidades, y listado editorial de trámites.
+- [x] Completar el editor de trámites, versiones, requisitos, pasos y fuentes.
+- [x] Implementar gestión administrativa de usuarios, estados de cuenta y roles.
+- [x] Implementar la bandeja administrativa de contacto, responsables, estados y notas internas.
+- [x] Implementar el módulo administrativo de operación, seguimiento y control de excepciones.
+- [x] Implementar perfiles de asesores y asignación administrativa de delegaciones pagadas.
+- [x] Implementar la solicitud de delegación y el pago simulado seguro desde la cuenta del usuario.
 - [ ] Implementar asesores, delegación y pago tokenizado/simulado.
 - [ ] Incorporar alertas persistentes y notificaciones.
 - [ ] Sustituir la validación de IA simulada por un proveedor seleccionado.

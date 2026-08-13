@@ -1,7 +1,7 @@
 {
   "name": "tramia",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server-runtime.ts",
@@ -14,7 +14,12 @@
     "db:check": "drizzle-kit check",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx database/seed.ts",
+    "admin:assign": "tsx scripts/assign-role.ts",
+    "admin:create-local": "tsx scripts/create-local-admin.ts",
     "security:check": "node scripts/check-committed-secrets.mjs",
+    "encoding:check": "node scripts/check-encoding.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "quality": "npm run lint && npm run db:check && npm run security:check && npm run encoding:check && npm run build",
     "version:check": "node scripts/verify-release-tag.mjs",
     "preversion": "npm run lint && npm run build",
     "release:patch": "npm version patch",
@@ -24,6 +29,7 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@neondatabase/serverless": "^1.0.2",
+    "@netlify/blobs": "^10.7.13",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",

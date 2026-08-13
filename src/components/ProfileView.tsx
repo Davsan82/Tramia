@@ -29,7 +29,7 @@ export default function ProfileView({ profile, onUpdateProfile }: ProfileViewPro
       const response = await fetch('/api/v1/profile', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contact) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.message || 'No pudimos guardar tus datos.');
-      onUpdateProfile(result.user); setContactNotice({ type: 'success', text: 'Tus datos de contacto se guardaron correctamente.' });
+      onUpdateProfile({ ...profile, ...result.contact }); setContactNotice({ type: 'success', text: 'Tus datos de contacto se guardaron correctamente.' });
     } catch (error) { setContactNotice({ type: 'error', text: error instanceof Error ? error.message : 'Ocurrió un error.' }); }
     finally { setSaving(false); }
   }
@@ -92,7 +92,7 @@ export default function ProfileView({ profile, onUpdateProfile }: ProfileViewPro
 
     <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">
       <SectionTitle icon={Fingerprint} title="Identidad ciudadana" description="Valida que el DNI te pertenece usando tu fecha de nacimiento." />
-      {isIdentityVerified ? <div className="mt-6 grid gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:grid-cols-2 lg:grid-cols-4"><ReadOnly label="Nombres y apellidos" value={profile.fullName} /><ReadOnly label="DNI" value={profile.dni} /><ReadOnly label="Fecha de nacimiento" value={profile.birthDate || 'Validada'} /><ReadOnly label="Sexo registrado" value={profile.gender || '—'} /></div> : <form onSubmit={validateIdentity} className="mt-6 grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+      {isIdentityVerified ? <div className="mt-6 grid gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:grid-cols-2 lg:grid-cols-4"><ReadOnly label="Nombres y apellidos" value={profile.fullName} /><ReadOnly label="DNI" value={profile.dni} /><ReadOnly label="Fecha de nacimiento" value={formatLatinDate(profile.birthDate)} /><ReadOnly label="Sexo registrado" value={formatGender(profile.gender)} /></div> : <form onSubmit={validateIdentity} className="mt-6 grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
         <Field label="DNI" icon={Fingerprint}><input className="field-input" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} required value={identity.document} onChange={(e) => setIdentity((v) => ({ ...v, document: e.target.value.replace(/\D/g, '') }))} placeholder="8 dígitos" /></Field>
         <Field label="Fecha de nacimiento" icon={CalendarDays}><input className="field-input" type="date" required max={new Date().toISOString().slice(0, 10)} value={identity.birthDate} onChange={(e) => setIdentity((v) => ({ ...v, birthDate: e.target.value }))} /></Field>
         <button disabled={validating} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-extrabold text-white hover:bg-blue-800 disabled:opacity-60">{validating ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />}{validating ? 'Validando…' : 'Validar identidad'}</button>
@@ -109,3 +109,5 @@ function StatusBadge({ verified, verifiedText, pendingText }: { verified: boolea
 function NoticeBox({ notice }: { notice: Notice }) { return notice ? <div role="status" className={`mt-4 flex gap-2 rounded-xl border p-3 text-xs font-semibold ${notice.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{notice.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}<span>{notice.text}</span></div> : null; }
 function ReadOnly({ label, value }: { label: string; value?: string }) { return <div><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">{label}</p><p className="mt-1 text-sm font-bold text-slate-900">{value || '—'}</p></div>; }
 function formatPlace(value: string) { return value.toLocaleLowerCase('es-PE').replace(/(^|\s)(\p{L})/gu, (_, space, letter) => `${space}${letter.toLocaleUpperCase('es-PE')}`); }
+function formatGender(value?: string) { const normalized = value?.trim().toUpperCase(); if (normalized === 'M' || normalized === 'MASCULINO') return 'Masculino'; if (normalized === 'F' || normalized === 'FEMENINO') return 'Femenino'; return value || '—'; }
+function formatLatinDate(value?: string) { if (!value) return 'Validada'; const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/); return match ? `${match[3]}-${match[2]}-${match[1]}` : value; }

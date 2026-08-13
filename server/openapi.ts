@@ -11,6 +11,11 @@ export const openApiDocument = {
   tags: [
     { name: 'Sistema' },
     { name: 'Catálogo' },
+    { name: 'Gestiones' },
+    { name: 'Asesores' },
+    { name: 'Documentos' },
+    { name: 'Mensajería' },
+    { name: 'Notificaciones' },
   ],
   paths: {
     '/health': {
@@ -69,6 +74,12 @@ export const openApiDocument = {
         },
       },
     },
+    '/v1/my-procedures': { get: { tags:['Gestiones'],summary:'Listar las gestiones de la sesión',responses:{'200':{description:'Gestiones activas e historial'},'401':{description:'Sesión requerida'}} }, post:{tags:['Gestiones'],summary:'Iniciar una gestión de forma idempotente',responses:{'201':{description:'Gestión creada'},'401':{description:'Sesión requerida'}}} },
+    '/v1/advisor/cases': { get:{tags:['Asesores'],summary:'Listar casos asignados al asesor',responses:{'200':{description:'Casos y resumen'},'403':{description:'Rol de asesor requerido'}}} },
+    '/v1/advisor/cases/{id}': { get:{tags:['Asesores'],summary:'Consultar ficha operativa de un caso',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Caso, pasos y requisitos'},'404':{description:'Caso no encontrado'}}} },
+    '/v1/procedure-cases/{id}/messages': { get:{tags:['Mensajería'],summary:'Listar mensajes privados de una gestión',responses:{'200':{description:'Conversación'}}},post:{tags:['Mensajería'],summary:'Enviar mensaje al usuario o asesor',responses:{'201':{description:'Mensaje enviado'}}} },
+    '/v1/procedure-cases/{id}/documents': { get:{tags:['Documentos'],summary:'Listar documentos de una gestión',responses:{'200':{description:'Metadatos de documentos'}}},post:{tags:['Documentos'],summary:'Subir PDF, JPG o PNG de hasta 8 MB',description:'El binario se almacena en Netlify Blobs; Postgres conserva únicamente metadatos y la clave.',responses:{'201':{description:'Documento almacenado'},'400':{description:'Archivo inválido'}}} },
+    '/v1/notifications': { get:{tags:['Notificaciones'],summary:'Listar notificaciones de la sesión',responses:{'200':{description:'Notificaciones y contador no leído'}}} },
   },
   components: {
     schemas: {

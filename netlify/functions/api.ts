@@ -1,4 +1,5 @@
 import serverless from "serverless-http";
+import { connectLambda } from "@netlify/blobs";
 import { app } from "../../server";
 
 const expressHandler = serverless(app);
@@ -14,6 +15,7 @@ type NetlifyEvent = {
  * well so Express always receives the public /api/* path.
  */
 export const handler = async (event: NetlifyEvent, context: unknown) => {
+  connectLambda(event as never);
   const incomingPath = event.path || event.rawPath || "/api";
   const functionPrefix = "/.netlify/functions/api";
   const normalizedPath = incomingPath.startsWith(functionPrefix)

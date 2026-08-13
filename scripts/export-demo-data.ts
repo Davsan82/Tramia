@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { PROCEDURES, GESTORES_VERIFICADOS, EXPIRATION_REMINDERS, INITIAL_ACTIVE_PROCEDURES, MOCK_HISTORY } from '../src/data';
+import { PROCEDURES, GESTORES_VERIFICADOS, EXPIRATION_REMINDERS, MOCK_HISTORY } from '../src/data';
 
 const data = {
   procedures: PROCEDURES.map(({ requirements, steps, ...procedure }) => procedure),
@@ -7,7 +7,7 @@ const data = {
   requirements: PROCEDURES.flatMap((procedure) => procedure.requirements.map((requirement) => ({ procedureId: procedure.id, procedureTitle: procedure.title, ...requirement }))),
   advisors: GESTORES_VERIFICADOS,
   reminders: EXPIRATION_REMINDERS,
-  activeProcedures: INITIAL_ACTIVE_PROCEDURES,
+  activeProcedures: [],
   history: MOCK_HISTORY,
 };
 

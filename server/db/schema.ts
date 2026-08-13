@@ -476,6 +476,16 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index('notifications_user_status_idx').on(table.userId, table.status, table.createdAt)]);
 
+export const procedureMessages = pgTable('procedure_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userProcedureId: uuid('user_procedure_id').notNull().references(() => userProcedures.id, { onDelete: 'cascade' }),
+  senderUserId: uuid('sender_user_id').notNull().references(() => users.id),
+  recipientUserId: uuid('recipient_user_id').notNull().references(() => users.id),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('procedure_messages_case_created_idx').on(table.userProcedureId, table.createdAt), index('procedure_messages_recipient_read_idx').on(table.recipientUserId, table.readAt)]);
+
 export const contactMessages = pgTable('contact_messages', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -485,6 +495,8 @@ export const contactMessages = pgTable('contact_messages', {
   topic: varchar('topic', { length: 40 }).notNull(),
   message: text('message').notNull(),
   status: varchar('status', { length: 30 }).notNull().default('received'),
+  assignedToUserId: uuid('assigned_to_user_id').references(() => users.id, { onDelete: 'set null' }),
+  handledAt: timestamp('handled_at', { withTimezone: true }),
   deliveryProvider: varchar('delivery_provider', { length: 40 }),
   deliveryMessageId: varchar('delivery_message_id', { length: 255 }),
   deliveredAt: timestamp('delivered_at', { withTimezone: true }),
@@ -494,7 +506,15 @@ export const contactMessages = pgTable('contact_messages', {
   sourcePath: varchar('source_path', { length: 500 }),
   metadata: jsonb('metadata').notNull().default({}),
   ...timestamps,
-}, (table) => [index('contact_messages_status_created_idx').on(table.status, table.createdAt), index('contact_messages_user_idx').on(table.userId, table.createdAt)]);
+}, (table) => [index('contact_messages_status_created_idx').on(table.status, table.createdAt), index('contact_messages_user_idx').on(table.userId, table.createdAt), index('contact_messages_assignee_idx').on(table.assignedToUserId, table.status)]);
+
+export const contactMessageNotes = pgTable('contact_message_notes', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  contactMessageId: uuid('contact_message_id').notNull().references(() => contactMessages.id, { onDelete: 'cascade' }),
+  authorUserId: uuid('author_user_id').references(() => users.id, { onDelete: 'set null' }),
+  note: text('note').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('contact_message_notes_message_idx').on(table.contactMessageId, table.createdAt)]);
 
 export const procedureStatusHistory = pgTable('procedure_status_history', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),

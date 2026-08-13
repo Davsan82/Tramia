@@ -89,6 +89,7 @@ export interface UserProfile {
   province?: string;
   district?: string;
   isNew?: boolean;
+  roles?: string[];
 }
 
 export interface ActiveProcedure {
