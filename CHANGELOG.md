@@ -1,5 +1,26 @@
 # Changelog
 
+Todos los cambios importantes de TramIA se documentarán en este archivo.
+
+El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
+y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
+
+## [Unreleased]
+
+## [0.5.2] - 2026-08-13
+
+### Corregido
+
+- Alineación de la lupa y carga robusta del módulo administrativo de usuarios y roles.
+- Apertura accesible y estable del menú de la cuenta autenticada.
+
+### Mejorado
+
+- Roles disponibles visibles y utilizables como filtros rápidos en el panel administrativo.
+- Accesos al panel administrativo y al panel de asesor diferenciados por rol.
+- Llamado a la acción para iniciar un trámite con una decisión más clara.
+- Selector responsive renovado para elegir entre ruta guiada y gestión acompañada.
+
 ## [0.5.1] - 2026-08-13
 
 ### Corregido
@@ -27,13 +48,6 @@
 
 - Paleta violeta diferenciada para asesores y administración.
 - Documentación OpenAPI y división de dependencias del bundle.
-
-Todos los cambios importantes de TramIA se documentarán en este archivo.
-
-El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
-y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
-
-## [Unreleased]
 
 ## [0.4.0] - 2026-08-13
 
@@ -137,7 +151,12 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/Davsan82/Tramia/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/Davsan82/Tramia/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/Davsan82/Tramia/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/Davsan82/Tramia/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/Davsan82/Tramia/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Davsan82/Tramia/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Davsan82/Tramia/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Davsan82/Tramia/releases/tag/v0.1.0

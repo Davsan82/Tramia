@@ -24,7 +24,7 @@ import { trackEvent } from './utils/analytics';
 import { EXPIRATION_REMINDERS } from './data';
 import { loadProcedureCatalog } from './services/catalog';
 import { Procedure, ActiveProcedure, ExpirationReminder, Requirement, UserProfile } from './types';
-import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ShieldCheck, ChevronRight, CheckCircle2, Headphones, ListChecks } from 'lucide-react';
 
 export default function App() {
   if (window.location.pathname === '/admin') return <Suspense fallback={<div className="grid min-h-screen place-items-center font-bold text-blue-700">Cargando administración…</div>}><AdminDashboardView onExit={() => { window.location.assign('/'); }} /></Suspense>;
@@ -906,83 +906,46 @@ export default function App() {
 
       {/* Method Selection Modal Overlay */}
       {isMethodSelectionModalOpen && pendingProcedureToStart && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-6 text-slate-950 shadow-2xl animate-scaleIn space-y-6 md:p-8">
-            
-            {/* Close Button */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#06142f]/75 p-3 backdrop-blur-md sm:p-5" role="dialog" aria-modal="true" aria-labelledby="procedure-method-title" onMouseDown={(event)=>{if(event.target===event.currentTarget){setIsMethodSelectionModalOpen(false);setPendingProcedureToStart(null)}}}>
+          <div className="relative my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-white/60 bg-[#f7faff] text-slate-950 shadow-[0_32px_100px_rgba(3,18,52,.38)] animate-scaleIn sm:max-h-[calc(100dvh-2.5rem)]">
             <button
               onClick={() => {
                 setIsMethodSelectionModalOpen(false);
                 setPendingProcedureToStart(null);
               }}
-              className="absolute right-6 top-6 z-50 p-2 bg-slate-100 text-slate-500 hover:text-blue-700 rounded-full cursor-pointer transition-colors shadow-xs"
-              aria-label="Cerrar"
+              className="absolute right-4 top-4 z-50 grid size-10 place-items-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur transition hover:bg-white/25 sm:right-5 sm:top-5"
+              aria-label="Cerrar selección de modalidad"
             >
-              <X size={16} />
+              <X size={19} />
             </button>
 
-            <div className="text-center space-y-2 max-w-lg mx-auto">
-              <h3 className="text-lg md:text-xl font-black tracking-tight text-white">¿Cómo te gustaría completar este trámite?</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Elige la modalidad de trabajo para que TramIA prepare tu asistencia en tiempo real.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 text-left">
-              
-              {/* Option 1: Do it myself */}
-              <div className="rounded-3xl border border-blue-200 bg-blue-50/60 p-6 flex flex-col justify-between space-y-5 transition-all">
-                <div className="space-y-3">
-                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl w-fit">
-                    <UserCheck size={20} />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-extrabold text-sm text-white">Opción 1: Hazlo tú mismo</h4>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      TramIA te guiará paso a paso en todo el proceso de manera interactiva.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, false)}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-                  id="modal-myself-flow-btn"
-                >
-                  Iniciar procedimiento
-                  <ChevronRight size={13} />
-                </button>
+            <header className="relative overflow-hidden bg-[linear-gradient(120deg,#071a3d,#0d55c7_62%,#12afd1)] px-5 py-7 text-white sm:px-8 sm:py-8 lg:pr-64">
+              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] bg-size-[22px_22px]"/>
+              <div className="relative max-w-2xl">
+                <p className="text-[11px] font-black uppercase tracking-[.18em] text-cyan-200">Elige cómo quieres avanzar</p>
+                <h3 id="procedure-method-title" className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">¿Cómo quieres realizar este trámite?</h3>
+                <p className="mt-2 text-sm leading-6 text-blue-100">Puedes hacerlo con nuestra guía paso a paso o solicitar el acompañamiento de un asesor especializado.</p>
+                <p className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold backdrop-blur"><ListChecks size={15} className="shrink-0 text-cyan-200"/><span className="truncate">{pendingProcedureToStart.title}</span></p>
               </div>
+              <img src="/assets/mascot/tramia-bot-guiding.png" alt="TramIA te ayuda a elegir cómo realizar el trámite" className="absolute -bottom-6 right-10 hidden h-52 object-contain drop-shadow-2xl lg:block"/>
+            </header>
 
-              {/* Option 2: Delegate to TramIA */}
-              <div className="rounded-3xl border border-violet-200 bg-violet-50/60 p-6 flex flex-col justify-between space-y-5 transition-all">
-                <div className="space-y-3">
-                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-extrabold text-sm text-white">Opción 2: Delegar a TramIA</h4>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      Un asesor experto de TramIA se encargará de realizar el trámite administrativo por ti.
-                    </p>
-                    <div className="pt-2">
-                      <span className="text-xs font-extrabold text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 inline-block">
-                        Costo estimado: {pendingProcedureToStart.feeAmount || 'S/ 65.00'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
+                <article className="group flex flex-col overflow-hidden rounded-3xl border-2 border-blue-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-xl sm:p-6">
+                  <div className="flex items-start gap-4"><span className="grid size-13 shrink-0 place-items-center rounded-2xl bg-blue-100 text-blue-700"><UserCheck size={26}/></span><div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.12em] text-blue-700">Ruta guiada</span><h4 className="mt-2 text-xl font-black">Hazlo tú mismo</h4><p className="mt-1 text-sm leading-6 text-slate-600">Avanza a tu ritmo con instrucciones claras, checklist, documentos y alertas.</p></div></div>
+                  <ul className="my-5 space-y-3 border-y border-slate-100 py-5 text-sm font-semibold text-slate-700"><Benefit text="Guía paso a paso para no omitir requisitos"/><Benefit text="Guarda tu avance y continúa cuando quieras"/><Benefit text="Recibe recordatorios de fechas importantes"/></ul>
+                  <div className="mt-auto"><p className="mb-3 text-xs font-bold text-emerald-700">Sin costo por acompañamiento</p><button onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, false)} className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700" id="modal-myself-flow-btn">Empezar con la guía <ChevronRight size={17}/></button></div>
+                </article>
 
-                <button
-                  onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, true)}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-                  id="modal-delegate-flow-btn"
-                >
-                  Delegar procedimiento
-                  <ChevronRight size={13} />
-                </button>
+                <article className="group relative flex flex-col overflow-hidden rounded-3xl border-2 border-violet-200 bg-[linear-gradient(145deg,#fff,#f5f3ff)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-xl sm:p-6">
+                  <span className="relative mb-3 ml-auto inline-flex rounded-full bg-violet-600 px-3 py-1 text-[10px] font-black uppercase tracking-[.1em] text-white sm:absolute sm:right-4 sm:top-4 sm:mb-0">Con asesor</span>
+                  <div className="flex items-start gap-4 sm:pr-14"><span className="grid size-13 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700"><Headphones size={26}/></span><div><span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.12em] text-violet-700">Gestión acompañada</span><h4 className="mt-2 text-xl font-black">Delegar a TramIA</h4><p className="mt-1 text-sm leading-6 text-slate-600">Completa primero tus acciones personales y luego elige un asesor para continuar.</p></div></div>
+                  <ul className="my-5 space-y-3 border-y border-violet-100 py-5 text-sm font-semibold text-slate-700"><Benefit text="Validación previa de los pasos que debes hacer" tone="violet"/><Benefit text="Elección de asesor según experiencia" tone="violet"/><Benefit text="Seguimiento del caso desde tu cuenta" tone="violet"/></ul>
+                  <div className="mt-auto"><p className="mb-3 text-xs font-bold text-violet-700">Servicio desde {pendingProcedureToStart.feeAmount || 'S/ 65.00'} · pago simulado</p><button onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, true)} className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800" id="modal-delegate-flow-btn">Revisar opción delegada <ChevronRight size={17}/></button></div>
+                </article>
               </div>
-
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-4"><ShieldCheck className="mt-0.5 shrink-0 text-cyan-700" size={20}/><p className="text-xs leading-5 text-slate-600"><strong className="text-slate-900">Tú mantienes el control.</strong> Puedes revisar la ruta antes de elegir. TramIA nunca solicita ni almacena tu Clave SOL.</p></div>
             </div>
           </div>
         </div>
@@ -990,3 +953,5 @@ export default function App() {
     </div>
   );
 }
+
+function Benefit({text,tone='blue'}:{text:string;tone?:'blue'|'violet'}){return <li className="flex items-start gap-2.5"><CheckCircle2 size={18} className={`mt-0.5 shrink-0 ${tone==='violet'?'text-violet-600':'text-blue-600'}`}/><span>{text}</span></li>}

@@ -45,10 +45,9 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 
 Los pagos y devoluciones continúan siendo exclusivamente simulados: no existe movimiento financiero real ni se almacenan PAN o CVV.
 
-- El inicio, checklist y avance completo de un trámite todavía usan estado transitorio en memoria mientras se completa su persistencia en Neon.
-- La carga de documentos a almacenamiento de objetos está pendiente.
 - La validación documental con IA es una simulación y no constituye revisión oficial.
-- La delegación, asignación de asesores y los pagos son demostrativos.
+- La delegación y asignación de asesores son funcionales dentro de TramIA, pero no representan una gestión real ante una entidad pública.
+- Los pagos y devoluciones son demostrativos y no generan movimientos financieros reales.
 - No se presentan solicitudes automáticamente ante entidades públicas.
 - No existe firma digital ni login social OAuth.
 
