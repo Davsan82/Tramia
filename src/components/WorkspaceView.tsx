@@ -1,141 +1,260 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  ArrowLeft, FileText, Sparkles, ShieldCheck, 
-  UploadCloud, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, ChevronUp,
-  HelpCircle, Clock, RefreshCw, Layers, Lock,
-  Check, MessageSquare, Building, Globe, DollarSign, Award,
-  Trash2, CheckSquare, Square, FileUp, ExternalLink, Info, MousePointerClick
-} from 'lucide-react';
-import { Procedure, Requirement, Step } from '../types';
-import { GESTORES_VERIFICADOS } from '../data';
-import TramIABot from './TramIABot';
-import DocumentValidationModal, { ValidationResult } from './DocumentValidationModal';
-import { trackEvent } from '../utils/analytics';
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import {
+  ArrowLeft,
+  FileText,
+  Sparkles,
+  ShieldCheck,
+  UploadCloud,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Clock,
+  RefreshCw,
+  Layers,
+  Lock,
+  Check,
+  MessageSquare,
+  Building,
+  Globe,
+  DollarSign,
+  Award,
+  Trash2,
+  CheckSquare,
+  Square,
+  FileUp,
+  ExternalLink,
+  Info,
+  MousePointerClick,
+} from "lucide-react";
+import { Procedure, Requirement, Step } from "../types";
+import { GESTORES_VERIFICADOS } from "../data";
+import TramIABot from "./TramIABot";
+import DocumentValidationModal, {
+  ValidationResult,
+} from "./DocumentValidationModal";
+import { trackEvent } from "../utils/analytics";
 
-function getPaymentInfo(stepTitle: string, stepDesc: string, procedureId: string) {
+function getPaymentInfo(
+  stepTitle: string,
+  stepDesc: string,
+  procedureId: string,
+) {
   const text = (stepTitle + " " + stepDesc).toLowerCase();
-  if (text.includes("pagalo") || text.includes("págalo") || text.includes("tasa") || text.includes("banco de la nación") || text.includes("arancel")) {
+  if (
+    text.includes("pagalo") ||
+    text.includes("págalo") ||
+    text.includes("tasa") ||
+    text.includes("banco de la nación") ||
+    text.includes("arancel")
+  ) {
     return {
       url: "https://pagalo.pe",
       label: "Pagar en Pagalo.pe (Oficial)",
-      site: "pagalo.pe"
+      site: "pagalo.pe",
     };
   }
   if (text.includes("sat") || text.includes("multa")) {
     return {
       url: "https://www.sat.gob.pe",
       label: "Ir a SAT Virtual",
-      site: "sat.gob.pe"
+      site: "sat.gob.pe",
     };
   }
-  if (text.includes("sunarp") || text.includes("reserva") || text.includes("propiedad")) {
+  if (
+    text.includes("sunarp") ||
+    text.includes("reserva") ||
+    text.includes("propiedad")
+  ) {
     return {
       url: "https://www.sunarp.gob.pe",
       label: "Ir a SUNARP en Línea",
-      site: "sunarp.gob.pe"
+      site: "sunarp.gob.pe",
     };
   }
   if (text.includes("sunat") || text.includes("ruc")) {
     return {
       url: "https://www.sunat.gob.pe",
       label: "Ir a SUNAT Virtual",
-      site: "sunat.gob.pe"
+      site: "sunat.gob.pe",
     };
   }
   if (procedureId === "soat") {
     return {
       url: "https://www.interseguro.pe/soat",
       label: "Adquirir SOAT en Línea",
-      site: "interseguro.pe"
+      site: "interseguro.pe",
     };
   }
-  if (text.includes("pago") || text.includes("pagar") || text.includes("comprar") || text.includes("adquirir")) {
+  if (
+    text.includes("pago") ||
+    text.includes("pagar") ||
+    text.includes("comprar") ||
+    text.includes("adquirir")
+  ) {
     return {
       url: "https://pagalo.pe",
       label: "Ir a Portal de Pago Seguro",
-      site: "Plataforma del Estado"
+      site: "Plataforma del Estado",
     };
   }
   return null;
 }
 
-function getStepOfficialUrl(stepId: string, procedureId: string, defaultUrl: string) {
+function getStepOfficialUrl(
+  stepId: string,
+  procedureId: string,
+  defaultUrl: string,
+) {
   const sId = stepId.toLowerCase();
   const pId = procedureId.toLowerCase();
-  
+
   // Renovación DNI (RENIEC)
-  if (pId === 'renovar-dni') {
-    if (sId.includes('pago') || sId.includes('tasa') || sId.includes('pagar') || sId.includes('step-1')) {
+  if (pId === "renovar-dni") {
+    if (
+      sId.includes("pago") ||
+      sId.includes("tasa") ||
+      sId.includes("pagar") ||
+      sId.includes("step-1")
+    ) {
       return "https://www.pagalo.pe/rates/02119";
     }
-    if (sId.includes('foto') || sId.includes('biom') || sId.includes('step-2')) {
+    if (
+      sId.includes("foto") ||
+      sId.includes("biom") ||
+      sId.includes("step-2")
+    ) {
       return "https://www.gob.pe/12061-tomar-fotografia-para-el-dni-mediante-la-aplicacion-dni-biofacial";
     }
-    if (sId.includes('present') || sId.includes('online') || sId.includes('step-3')) {
+    if (
+      sId.includes("present") ||
+      sId.includes("online") ||
+      sId.includes("step-3")
+    ) {
       return "https://apps.reniec.gob.pe/renovacionDni/";
     }
-    if (sId.includes('entreg') || sId.includes('recog') || sId.includes('step-4')) {
+    if (
+      sId.includes("entreg") ||
+      sId.includes("recog") ||
+      sId.includes("step-4")
+    ) {
       return "https://serviciosportal.reniec.gob.pe/cetdnipi/inicio.htm";
     }
   }
 
   // Pasaporte Biométrico
-  if (pId === 'sacar-pasaporte') {
-    if (sId.includes('pago') || sId.includes('tasa') || sId.includes('01810') || sId.includes('pass-1')) {
+  if (pId === "sacar-pasaporte") {
+    if (
+      sId.includes("pago") ||
+      sId.includes("tasa") ||
+      sId.includes("01810") ||
+      sId.includes("pass-1")
+    ) {
       return "https://www.pagalo.pe/rates/01810";
     }
-    if (sId.includes('cita') || sId.includes('reserv') || sId.includes('pass-2')) {
+    if (
+      sId.includes("cita") ||
+      sId.includes("reserv") ||
+      sId.includes("pass-2")
+    ) {
       return "https://sel.migraciones.gob.pe/web-citas/";
     }
-    if (sId.includes('biometr') || sId.includes('captur') || sId.includes('pass-3')) {
+    if (
+      sId.includes("biometr") ||
+      sId.includes("captur") ||
+      sId.includes("pass-3")
+    ) {
       return "https://www.gob.pe/112-obtener-pasaporte-electronico-ordinario#pasos-del-tramite";
     }
-    if (sId.includes('emision') || sId.includes('entreg') || sId.includes('pass-4')) {
+    if (
+      sId.includes("emision") ||
+      sId.includes("entreg") ||
+      sId.includes("pass-4")
+    ) {
       return "https://www.gob.pe/112-obtener-pasaporte-electronico-ordinario";
     }
   }
 
   // Licencia de Conducir (MTC)
-  if (pId === 'licencia-conducir') {
-    if (sId.includes('medico') || sId.includes('psico') || sId.includes('step-lc-1')) {
+  if (pId === "licencia-conducir") {
+    if (
+      sId.includes("medico") ||
+      sId.includes("psico") ||
+      sId.includes("step-lc-1")
+    ) {
       return "https://rec.mtc.gob.pe/LicenciaConducir/ArctSgCentroMedicoAutorizado";
     }
-    if (sId.includes('reglas') || sId.includes('conocimiento') || sId.includes('step-lc-2')) {
+    if (
+      sId.includes("reglas") ||
+      sId.includes("conocimiento") ||
+      sId.includes("step-lc-2")
+    ) {
       return "https://licencias.mtc.gob.pe/";
     }
-    if (sId.includes('manejo') || sId.includes('practic') || sId.includes('step-lc-3')) {
+    if (
+      sId.includes("manejo") ||
+      sId.includes("practic") ||
+      sId.includes("step-lc-3")
+    ) {
       return "https://touring.pe/inscripciones/";
     }
-    if (sId.includes('emision') || sId.includes('tramit') || sId.includes('step-lc-4')) {
+    if (
+      sId.includes("emision") ||
+      sId.includes("tramit") ||
+      sId.includes("step-lc-4")
+    ) {
       return "https://licencias-tramite.mtc.gob.pe/";
     }
   }
 
   // RUC SUNAT
-  if (pId === 'ruc-sunat') {
-    if (sId.includes('solicitud') || sId.includes('inscrib') || sId.includes('step-ruc-1')) {
+  if (pId === "ruc-sunat") {
+    if (
+      sId.includes("solicitud") ||
+      sId.includes("inscrib") ||
+      sId.includes("step-ruc-1")
+    ) {
       return "https://www.gob.pe/654-inscribirse-en-el-ruc";
     }
-    if (sId.includes('sol') || sId.includes('clave') || sId.includes('step-ruc-2')) {
+    if (
+      sId.includes("sol") ||
+      sId.includes("clave") ||
+      sId.includes("step-ruc-2")
+    ) {
       return "https://www.gob.pe/671-obtener-clave-sol";
     }
-    if (sId.includes('activ') || sId.includes('tribut') || sId.includes('step-ruc-3')) {
+    if (
+      sId.includes("activ") ||
+      sId.includes("tribut") ||
+      sId.includes("step-ruc-3")
+    ) {
       return "https://www.sunat.gob.pe/operacioneslineas.html";
     }
   }
 
   // SUNARP
-  if (pId === 'reserva-nombre' || pId === 'copia-literal' || pId === 'inscripcion-casa') {
+  if (
+    pId === "reserva-nombre" ||
+    pId === "copia-literal" ||
+    pId === "inscripcion-casa"
+  ) {
     return "https://www.sunarp.gob.pe/sprl/inicio";
   }
 
   // SAT & Alcabala
-  if (pId === 'multas-sat' || pId === 'pago-alcabala') {
+  if (pId === "multas-sat" || pId === "pago-alcabala") {
     return "https://www.sat.gob.pe/WebSiteV9/Inicio/Papeletas";
   }
 
   // Fallback defaults
-  if (sId.includes("pago") || sId.includes("tasa") || sId.includes("pagar") || sId.includes("abono")) {
+  if (
+    sId.includes("pago") ||
+    sId.includes("tasa") ||
+    sId.includes("pagar") ||
+    sId.includes("abono")
+  ) {
     return "https://www.pagalo.pe";
   }
   return defaultUrl;
@@ -143,111 +262,128 @@ function getStepOfficialUrl(stepId: string, procedureId: string, defaultUrl: str
 
 function getOfficialSource(procedureId: string) {
   switch (procedureId) {
-    case 'sacar-pasaporte':
+    case "sacar-pasaporte":
       return {
-        url: 'https://www.gob.pe/pasaporte',
-        siteName: 'Superintendencia Nacional de Migraciones',
-        description: 'La información de este trámite está basada en la Plataforma Única del Estado Peruano y los portales oficiales de Migraciones.'
+        url: "https://www.gob.pe/pasaporte",
+        siteName: "Superintendencia Nacional de Migraciones",
+        description:
+          "La información de este trámite está basada en la Plataforma Única del Estado Peruano y los portales oficiales de Migraciones.",
       };
-    case 'licencia-conducir':
+    case "licencia-conducir":
       return {
-        url: 'https://licencias.mtc.gob.pe/',
-        siteName: 'Ministerio de Transportes y Comunicaciones (MTC)',
-        description: 'La información de este trámite está basada en el Portal Oficial del MTC.'
+        url: "https://licencias.mtc.gob.pe/",
+        siteName: "Ministerio de Transportes y Comunicaciones (MTC)",
+        description:
+          "La información de este trámite está basada en el Portal Oficial del MTC.",
       };
-    case 'ruc-sunat':
+    case "ruc-sunat":
       return {
-        url: 'https://www.sunat.gob.pe',
-        siteName: 'Superintendencia Nacional de Aduanas y de Administración Tributaria (SUNAT)',
-        description: 'La información de este trámite está basada en los portales oficiales de SUNAT.'
+        url: "https://www.sunat.gob.pe",
+        siteName:
+          "Superintendencia Nacional de Aduanas y de Administración Tributaria (SUNAT)",
+        description:
+          "La información de este trámite está basada en los portales oficiales de SUNAT.",
       };
-    case 'reserva-nombre':
-    case 'copia-literal':
-    case 'inscripcion-casa':
+    case "reserva-nombre":
+    case "copia-literal":
+    case "inscripcion-casa":
       return {
-        url: 'https://www.gob.pe/sunarp',
-        siteName: 'Superintendencia Nacional de los Registros Públicos (SUNARP)',
-        description: 'La información de este trámite está basada en el Portal Institucional de la SUNARP.'
+        url: "https://www.gob.pe/sunarp",
+        siteName:
+          "Superintendencia Nacional de los Registros Públicos (SUNARP)",
+        description:
+          "La información de este trámite está basada en el Portal Institucional de la SUNARP.",
       };
-    case 'multas-sat':
-    case 'pago-alcabala':
+    case "multas-sat":
+    case "pago-alcabala":
       return {
-        url: 'https://www.sat.gob.pe',
-        siteName: 'Servicio de Administración Tributaria de Lima (SAT)',
-        description: 'La información de este trámite está basada en el Portal del SAT de Lima.'
+        url: "https://www.sat.gob.pe",
+        siteName: "Servicio de Administración Tributaria de Lima (SAT)",
+        description:
+          "La información de este trámite está basada en el Portal del SAT de Lima.",
       };
-    case 'soat':
+    case "soat":
       return {
-        url: 'https://www.apeseg.org.pe',
-        siteName: 'Asociación Peruana de Empresas de Seguros (APESEG)',
-        description: 'La información de este trámite está basada en el registro oficial de la APESEG.'
+        url: "https://www.apeseg.org.pe",
+        siteName: "Asociación Peruana de Empresas de Seguros (APESEG)",
+        description:
+          "La información de este trámite está basada en el registro oficial de la APESEG.",
       };
-    case 'renovar-dni':
-    case 'acta-nacimiento':
-    case 'dni-menor':
+    case "renovar-dni":
+    case "acta-nacimiento":
+    case "dni-menor":
     default:
       return {
-        url: 'https://www.gob.pe/reniec',
-        siteName: 'Registro Nacional de Identificación y Estado Civil (RENIEC)',
-        description: 'La información de este trámite está basada en los portales oficiales del Estado Peruano.'
+        url: "https://www.gob.pe/reniec",
+        siteName: "Registro Nacional de Identificación y Estado Civil (RENIEC)",
+        description:
+          "La información de este trámite está basada en los portales oficiales del Estado Peruano.",
       };
   }
 }
 
 function formatEntityName(siteName: string) {
-  if (siteName.includes('(')) {
+  if (siteName.includes("(")) {
     const match = siteName.match(/\(([^)]+)\)/);
     if (match) return match[1];
   }
-  if (siteName.includes('Migraciones')) return 'Migraciones';
-  if (siteName.includes('Salud')) return 'MINSA';
-  if (siteName.includes('Asociación Peruana')) return 'APESEG';
-  if (siteName.includes('Plataforma Digital Única')) return 'Gobierno del Perú';
+  if (siteName.includes("Migraciones")) return "Migraciones";
+  if (siteName.includes("Salud")) return "MINSA";
+  if (siteName.includes("Asociación Peruana")) return "APESEG";
+  if (siteName.includes("Plataforma Digital Única")) return "Gobierno del Perú";
   return siteName;
 }
 
 const getComplexityBadgeStyle = (complexity: string) => {
   switch (complexity) {
-    case 'Baja':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'Media':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'Alta':
-      return 'bg-red-50 text-red-700 border-red-100';
+    case "Baja":
+      return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    case "Media":
+      return "bg-amber-50 text-amber-700 border-amber-100";
+    case "Alta":
+      return "bg-red-50 text-red-700 border-red-100";
     default:
-      return 'bg-slate-50 text-slate-700 border-slate-150';
+      return "bg-slate-50 text-slate-700 border-slate-150";
   }
 };
 
 /**
  * Determinación precisa de si un paso requiere carga de evidencia (foto/documento) o si es una confirmación manual
  */
-function isStepEvidenceRequired(step: Step, procedure: Procedure, requirements: Requirement[]): boolean {
+function isStepEvidenceRequired(
+  step: Step,
+  procedure: Procedure,
+  requirements: Requirement[],
+): boolean {
   if (step.requiresEvidence !== undefined) return step.requiresEvidence;
 
-  const stepReqs = requirements.filter(r => r.requiredForStepId === step.id);
-  if (stepReqs.some(r => r.requiresEvidence === true)) return true;
-  if (stepReqs.some(r => r.requiresEvidence === false)) return false;
+  const stepReqs = requirements.filter((r) => r.requiredForStepId === step.id);
+  if (stepReqs.some((r) => r.requiresEvidence === true)) return true;
+  if (stepReqs.some((r) => r.requiresEvidence === false)) return false;
 
   const combinedText = (
-    step.title + " " + step.description + " " + stepReqs.map(r => r.name + " " + r.description).join(" ")
+    step.title +
+    " " +
+    step.description +
+    " " +
+    stepReqs.map((r) => r.name + " " + r.description).join(" ")
   ).toLowerCase();
 
   // Pasos que son acciones puras del usuario (pago, formulario web, reservar cita, recojo presencial)
   // No solicitan recibos ni documentos innecesarios (Regla 6)
   if (
-    combinedText.includes("pago") || 
-    combinedText.includes("pagar") || 
-    combinedText.includes("tasa") || 
-    combinedText.includes("pagalo") || 
-    combinedText.includes("voucher") || 
+    combinedText.includes("pago") ||
+    combinedText.includes("pagar") ||
+    combinedText.includes("tasa") ||
+    combinedText.includes("pagalo") ||
+    combinedText.includes("voucher") ||
     combinedText.includes("comprobante") ||
-    combinedText.includes("cita") || 
-    combinedText.includes("reservar") || 
-    combinedText.includes("formulario web") || 
-    combinedText.includes("llenar") || 
-    combinedText.includes("recoger") || 
-    combinedText.includes("entrega") || 
+    combinedText.includes("cita") ||
+    combinedText.includes("reservar") ||
+    combinedText.includes("formulario web") ||
+    combinedText.includes("llenar") ||
+    combinedText.includes("recoger") ||
+    combinedText.includes("entrega") ||
     combinedText.includes("asistir") ||
     combinedText.includes("consulta")
   ) {
@@ -256,20 +392,27 @@ function isStepEvidenceRequired(step: Step, procedure: Procedure, requirements: 
 
   // Pasos con verdadero valor agregado para análisis/validación (fotografía biométrica, examen médico, minuta legal)
   if (
-    combinedText.includes("foto") || 
-    combinedText.includes("biométri") || 
-    combinedText.includes("biometri") || 
-    combinedText.includes("selfie") || 
-    combinedText.includes("rostro") || 
-    combinedText.includes("certificado médico") || 
-    combinedText.includes("minuta") || 
+    combinedText.includes("foto") ||
+    combinedText.includes("biométri") ||
+    combinedText.includes("biometri") ||
+    combinedText.includes("selfie") ||
+    combinedText.includes("rostro") ||
+    combinedText.includes("certificado médico") ||
+    combinedText.includes("minuta") ||
     combinedText.includes("partida de nacimiento") ||
     combinedText.includes("escritura pública")
   ) {
     return true;
   }
 
-  if (stepReqs.some(r => r.uploadedFileName && !r.uploadedFileName.includes('manual') && !r.uploadedFileName.includes('Modo Guía'))) {
+  if (
+    stepReqs.some(
+      (r) =>
+        r.uploadedFileName &&
+        !r.uploadedFileName.includes("manual") &&
+        !r.uploadedFileName.includes("Modo Guía"),
+    )
+  ) {
     return true;
   }
 
@@ -287,7 +430,7 @@ interface WorkspaceViewProps {
     currentStepId?: string,
     isQuiet?: boolean,
     isPaid?: boolean,
-    completedStepIds?: string[]
+    completedStepIds?: string[],
   ) => void;
   isNewUser?: boolean;
   initialIsDelegated?: boolean;
@@ -301,25 +444,58 @@ export default function WorkspaceView({
   onAddActiveProcedure,
   initialIsDelegated = false,
   initialIsPaid = false,
-  onDeleteProcedure
+  onDeleteProcedure,
 }: WorkspaceViewProps) {
   const officialSource = getOfficialSource(procedure.id);
-  const isPrivate = ['soat', 'escritura-casa', 'permiso-menores'].includes(procedure.id);
-  const isMixed = ['crear-empresa', 'constituir-eirl'].includes(procedure.id);
-  const procedureType = isPrivate ? 'Privado' : isMixed ? 'Estatal / Privado' : 'Estatal';
+  const isPrivate = ["soat", "escritura-casa", "permiso-menores"].includes(
+    procedure.id,
+  );
+  const isMixed = ["crear-empresa", "constituir-eirl"].includes(procedure.id);
+  const procedureType = isPrivate
+    ? "Privado"
+    : isMixed
+      ? "Estatal / Privado"
+      : "Estatal";
 
   // Navigation: Autogestionar vs Delegar
   const [isDelegated, setIsDelegated] = useState<boolean>(initialIsDelegated);
   const [isBotChatOpen, setIsBotChatOpen] = useState(false);
-  const [caseId,setCaseId]=useState<string>('');
-  const [actionStep,setActionStep]=useState<Step|null>(null);
-  const [actionData,setActionData]=useState<Record<string,string>>({});
-  useEffect(()=>{fetch(`/api/v1/my-procedures/by-procedure/${procedure.id}/workspace`,{credentials:'include'}).then(r=>r.json()).then(p=>setCaseId(p.instance?.id||'')).catch(()=>{})},[procedure.id]);
-  const completeAction=async()=>{if(!actionStep||!caseId)return;const response=await fetch(`/api/v1/my-procedures/${caseId}/steps/${actionStep.id}/complete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmCompleted:true,data:actionData})}),payload=await response.json().catch(()=>({}));if(!response.ok){alert(payload.message||'No pudimos completar la etapa.');return}setCompletedStepIds(value=>[...new Set([...value,actionStep.id])]);setActionStep(null);setActionData({})};
+  const [caseId, setCaseId] = useState<string>("");
+  const [actionStep, setActionStep] = useState<Step | null>(null);
+  const [actionData, setActionData] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch(`/api/v1/my-procedures/by-procedure/${procedure.id}/workspace`, {
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((p) => setCaseId(p.instance?.id || ""))
+      .catch(() => {});
+  }, [procedure.id]);
+  const completeAction = async () => {
+    if (!actionStep || !caseId) return;
+    const response = await fetch(
+        `/api/v1/my-procedures/${caseId}/steps/${actionStep.id}/complete`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmCompleted: true, data: actionData }),
+        },
+      ),
+      payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(payload.message || "No pudimos completar la etapa.");
+      return;
+    }
+    setCompletedStepIds((value) => [...new Set([...value, actionStep.id])]);
+    setActionStep(null);
+    setActionData({});
+  };
 
   // AI Document Validation Modal State
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
-  const [activeValidationRequirement, setActiveValidationRequirement] = useState<Requirement | null>(null);
+  const [activeValidationRequirement, setActiveValidationRequirement] =
+    useState<Requirement | null>(null);
 
   const handleOpenAiValidation = (req: Requirement) => {
     setActiveValidationRequirement(req);
@@ -328,7 +504,8 @@ export default function WorkspaceView({
 
   // Deletion modals state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [showDeleteRestrictedModal, setShowDeleteRestrictedModal] = useState(false);
+  const [showDeleteRestrictedModal, setShowDeleteRestrictedModal] =
+    useState(false);
 
   const handleDeleteProcedureClick = () => {
     if (isDelegated && isPaid) {
@@ -340,32 +517,40 @@ export default function WorkspaceView({
 
   // Requirements state
   const [requirements, setRequirements] = useState<Requirement[]>(() => {
-    return procedure.requirements.map(r => {
-      if (r.uploadedFileName || (r.status && r.status !== 'Por iniciar' && r.status !== 'Pendiente')) {
+    return procedure.requirements.map((r) => {
+      if (
+        r.uploadedFileName ||
+        (r.status && r.status !== "Por iniciar" && r.status !== "Pendiente")
+      ) {
         return { ...r };
       }
       return {
         ...r,
-        status: 'Pendiente',
+        status: "Pendiente",
         uploadedFileName: undefined,
         feedbackMessage: undefined,
         imageQuality: undefined,
         detectedErrors: undefined,
         recommendations: undefined,
-        isValidated: false
+        isValidated: false,
       };
     });
   });
 
   // Checklist completion state for steps (by step.id)
   const [completedStepIds, setCompletedStepIds] = useState<string[]>(() => {
-    if ((procedure as any).completedStepIds && Array.isArray((procedure as any).completedStepIds)) {
+    if (
+      (procedure as any).completedStepIds &&
+      Array.isArray((procedure as any).completedStepIds)
+    ) {
       return (procedure as any).completedStepIds;
     }
     const initialCompleted: string[] = [];
-    procedure.steps.forEach(s => {
-      const sReqs = procedure.requirements.filter(r => r.requiredForStepId === s.id);
-      if (sReqs.length > 0 && sReqs.every(r => r.status === 'Aprobado')) {
+    procedure.steps.forEach((s) => {
+      const sReqs = procedure.requirements.filter(
+        (r) => r.requiredForStepId === s.id,
+      );
+      if (sReqs.length > 0 && sReqs.every((r) => r.status === "Aprobado")) {
         initialCompleted.push(s.id);
       }
     });
@@ -374,15 +559,17 @@ export default function WorkspaceView({
 
   // Active expanded step state (accordion functionality)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(() => {
-    const firstPending = procedure.steps.find(s => {
-      const sReqs = procedure.requirements.filter(r => r.requiredForStepId === s.id);
-      return !(sReqs.length > 0 && sReqs.every(r => r.status === 'Aprobado'));
+    const firstPending = procedure.steps.find((s) => {
+      const sReqs = procedure.requirements.filter(
+        (r) => r.requiredForStepId === s.id,
+      );
+      return !(sReqs.length > 0 && sReqs.every((r) => r.status === "Aprobado"));
     });
     return firstPending ? firstPending.id : procedure.steps[0]?.id || null;
   });
 
   const toggleStepExpand = (stepId: string) => {
-    setExpandedStepId(prev => (prev === stepId ? null : stepId));
+    setExpandedStepId((prev) => (prev === stepId ? null : stepId));
   };
 
   // File upload trigger refs
@@ -392,7 +579,7 @@ export default function WorkspaceView({
   const handleTriggerUpload = (reqId: string) => {
     setUploadingReqId(reqId);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
   };
@@ -400,40 +587,50 @@ export default function WorkspaceView({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && uploadingReqId) {
-      runAISimulator(uploadingReqId, 'good', file.name);
+      runAISimulator(uploadingReqId, "good", file.name);
     }
   };
 
   // Toggle manual confirmation checkbox
   const toggleManualStep = (stepId: string) => {
-    const target=procedure.steps.find(step=>step.id===stepId);if(target&&!completedStepIds.includes(stepId)){setActionStep(target);return}
-    setCompletedStepIds(prev => {
+    const target = procedure.steps.find((step) => step.id === stepId);
+    if (target && !completedStepIds.includes(stepId)) {
+      setActionStep(target);
+      return;
+    }
+    setCompletedStepIds((prev) => {
       let next: string[];
       if (prev.includes(stepId)) {
-        next = prev.filter(id => id !== stepId);
+        next = prev.filter((id) => id !== stepId);
       } else {
         next = [...prev, stepId];
         // Auto advance expand to next uncompleted step
-        const currentIdx = procedure.steps.findIndex(s => s.id === stepId);
-        const nextStep = procedure.steps.slice(currentIdx + 1).find(s => !next.includes(s.id));
+        const currentIdx = procedure.steps.findIndex((s) => s.id === stepId);
+        const nextStep = procedure.steps
+          .slice(currentIdx + 1)
+          .find((s) => !next.includes(s.id));
         if (nextStep) {
           setExpandedStepId(nextStep.id);
         }
       }
 
       // Sync requirements
-      setRequirements(prevReqs => prevReqs.map(r => {
-        if (r.requiredForStepId === stepId) {
-          const isNowCompleted = next.includes(stepId);
-          return {
-            ...r,
-            status: isNowCompleted ? 'Aprobado' : 'Pendiente',
-            uploadedFileName: isNowCompleted ? (r.uploadedFileName || 'Confirmado manualmente') : undefined,
-            isValidated: isNowCompleted
-          };
-        }
-        return r;
-      }));
+      setRequirements((prevReqs) =>
+        prevReqs.map((r) => {
+          if (r.requiredForStepId === stepId) {
+            const isNowCompleted = next.includes(stepId);
+            return {
+              ...r,
+              status: isNowCompleted ? "Aprobado" : "Pendiente",
+              uploadedFileName: isNowCompleted
+                ? r.uploadedFileName || "Confirmado manualmente"
+                : undefined,
+              isValidated: isNowCompleted,
+            };
+          }
+          return r;
+        }),
+      );
 
       return next;
     });
@@ -441,54 +638,67 @@ export default function WorkspaceView({
 
   // Scanning & Simulator states
   const [isScanning, setIsScanning] = useState(false);
-  const [scanStep, setScanStep] = useState<string>('');
+  const [scanStep, setScanStep] = useState<string>("");
 
-  const runAISimulator = (reqId: string, type: 'good' | 'bad' | 'blurry', customFileName?: string) => {
+  const runAISimulator = (
+    reqId: string,
+    type: "good" | "bad" | "blurry",
+    customFileName?: string,
+  ) => {
     setIsScanning(true);
-    setScanStep('Leyendo archivo cargado...');
-    
+    setScanStep("Leyendo archivo cargado...");
+
     setTimeout(() => {
-      setScanStep('Analizando calidad de imagen e integridad...');
+      setScanStep("Analizando calidad de imagen e integridad...");
       setTimeout(() => {
-        setScanStep('Cruzando registros con bases de datos públicas de TramIA...');
+        setScanStep(
+          "Cruzando registros con bases de datos públicas de TramIA...",
+        );
         setTimeout(() => {
           setIsScanning(false);
-          
-          let updatedReq: Partial<Requirement> = {};
-          const originalReq = requirements.find(r => r.id === reqId || r.requiredForStepId === reqId);
-          const reqName = originalReq ? originalReq.name : 'Documento';
 
-          if (type === 'good') {
+          let updatedReq: Partial<Requirement> = {};
+          const originalReq = requirements.find(
+            (r) => r.id === reqId || r.requiredForStepId === reqId,
+          );
+          const reqName = originalReq ? originalReq.name : "Documento";
+
+          if (type === "good") {
             updatedReq = {
-              status: 'Aprobado',
+              status: "Aprobado",
               uploadedFileName: customFileName || `${reqId}_verificado.pdf`,
               feedbackMessage: `Verificado por TramIA: El archivo "${reqName}" ha sido validado exitosamente. Cumple plenamente con el estándar requerido.`,
-              imageQuality: 'Buena',
+              imageQuality: "Buena",
               detectedErrors: [],
-              isValidated: true
+              isValidated: true,
             };
           }
 
           // Update requirement
-          setRequirements(prev => prev.map(r => {
-            if (r.id === reqId || r.requiredForStepId === reqId) {
-              return { ...r, ...updatedReq } as Requirement;
-            }
-            return r;
-          }));
+          setRequirements((prev) =>
+            prev.map((r) => {
+              if (r.id === reqId || r.requiredForStepId === reqId) {
+                return { ...r, ...updatedReq } as Requirement;
+              }
+              return r;
+            }),
+          );
 
           // Mark associated step as completed automatically
           const targetStepId = originalReq?.requiredForStepId || reqId;
-          setCompletedStepIds(prev => {
+          setCompletedStepIds((prev) => {
             const nextCompleted = Array.from(new Set([...prev, targetStepId]));
-            const currentIdx = procedure.steps.findIndex(s => s.id === targetStepId);
-            const nextUncompleted = procedure.steps.slice(currentIdx + 1).find(s => !nextCompleted.includes(s.id));
+            const currentIdx = procedure.steps.findIndex(
+              (s) => s.id === targetStepId,
+            );
+            const nextUncompleted = procedure.steps
+              .slice(currentIdx + 1)
+              .find((s) => !nextCompleted.includes(s.id));
             if (nextUncompleted) {
               setExpandedStepId(nextUncompleted.id);
             }
             return nextCompleted;
           });
-
         }, 1000);
       }, 900);
     }, 700);
@@ -500,7 +710,7 @@ export default function WorkspaceView({
   const [isPaying, setIsPaying] = useState<boolean>(false);
 
   const allDocumentsApproved = useMemo(() => {
-    return requirements.every(r => r.status === 'Aprobado');
+    return requirements.every((r) => r.status === "Aprobado");
   }, [requirements]);
 
   // Real-time Progress percentage calculation
@@ -520,58 +730,96 @@ export default function WorkspaceView({
   const isPriorStepsCompleted = useMemo(() => {
     if (totalSteps <= 1) return false;
     const priorSteps = procedure.steps.slice(0, totalSteps - 1);
-    return priorSteps.every(s => completedStepIds.includes(s.id)) && !isLastStepCompleted;
+    return (
+      priorSteps.every((s) => completedStepIds.includes(s.id)) &&
+      !isLastStepCompleted
+    );
   }, [procedure.steps, completedStepIds, isLastStepCompleted, totalSteps]);
 
   const completionPercentageB = useMemo(() => {
     const totalReqs = requirements.length;
     if (totalReqs === 0) return 0;
-    const approvedCount = requirements.filter(r => r.status === 'Aprobado').length;
+    const approvedCount = requirements.filter(
+      (r) => r.status === "Aprobado",
+    ).length;
     const rawPct = Math.round((approvedCount / totalReqs) * 100);
     return rawPct === 100 ? 95 : rawPct;
   }, [requirements]);
 
   // Synchronize progress with parent App in real time
   useEffect(() => {
-    const activeStepId = procedure.steps.find(s => !completedStepIds.includes(s.id))?.id || 'completed';
+    const activeStepId =
+      procedure.steps.find((s) => !completedStepIds.includes(s.id))?.id ||
+      "completed";
     const pct = isDelegated ? completionPercentageB : completionPercentageA;
-    onAddActiveProcedure(procedure, pct, isDelegated, requirements, activeStepId, true, isPaid, completedStepIds);
-  }, [requirements, completedStepIds, isDelegated, completionPercentageA, completionPercentageB, isPaid]);
+    onAddActiveProcedure(
+      procedure,
+      pct,
+      isDelegated,
+      requirements,
+      activeStepId,
+      true,
+      isPaid,
+      completedStepIds,
+    );
+  }, [
+    requirements,
+    completedStepIds,
+    isDelegated,
+    completionPercentageA,
+    completionPercentageB,
+    isPaid,
+  ]);
 
   const autoCompletedTrackedRef = useRef(false);
   const delegatedDocTrackedRef = useRef(false);
 
   useEffect(() => {
-    if (!isDelegated && completionPercentageA === 100 && !autoCompletedTrackedRef.current) {
+    if (
+      !isDelegated &&
+      completionPercentageA === 100 &&
+      !autoCompletedTrackedRef.current
+    ) {
       autoCompletedTrackedRef.current = true;
-      trackEvent('tramite_auto_completado', {
+      trackEvent("tramite_auto_completado", {
         procedure_id: procedure.id,
-        procedure_title: procedure.title
+        procedure_title: procedure.title,
       });
     }
   }, [isDelegated, completionPercentageA, procedure.id, procedure.title]);
 
   useEffect(() => {
-    if (isDelegated && allDocumentsApproved && requirements.length > 0 && !delegatedDocTrackedRef.current) {
+    if (
+      isDelegated &&
+      allDocumentsApproved &&
+      requirements.length > 0 &&
+      !delegatedDocTrackedRef.current
+    ) {
       delegatedDocTrackedRef.current = true;
-      trackEvent('tramite_delegadado_documentado', {
+      trackEvent("tramite_delegadado_documentado", {
         procedure_id: procedure.id,
-        procedure_title: procedure.title
+        procedure_title: procedure.title,
       });
     }
-  }, [isDelegated, allDocumentsApproved, requirements.length, procedure.id, procedure.title]);
+  }, [
+    isDelegated,
+    allDocumentsApproved,
+    requirements.length,
+    procedure.id,
+    procedure.title,
+  ]);
 
-  const isAllStepsCompleted = completionPercentageA === 100 && isLastStepCompleted;
+  const isAllStepsCompleted =
+    completionPercentageA === 100 && isLastStepCompleted;
 
   return (
     <div className="space-y-6 animate-fadeIn" id="workspace-view-top">
-      
       {/* Hidden File Input for Evidence Upload */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        className="hidden" 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
         accept="image/*,.pdf"
       />
 
@@ -606,12 +854,16 @@ export default function WorkspaceView({
               <span className="text-xs font-bold text-blue-600 font-mono tracking-wider uppercase">
                 {isDelegated ? "TRÁMITE DELEGADO" : "AUTOGESTIÓN INTERACTIVA"}
               </span>
-              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md border ${
-                isDelegated 
-                  ? 'bg-purple-50 text-purple-700 border-purple-100' 
-                  : 'bg-blue-50 text-blue-700 border-blue-100'
-              }`}>
-                {isDelegated ? "Delegación a Asesor Experto" : "Checklist Híbrido Paso a Paso"}
+              <span
+                className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md border ${
+                  isDelegated
+                    ? "bg-purple-50 text-purple-700 border-purple-100"
+                    : "bg-blue-50 text-blue-700 border-blue-100"
+                }`}
+              >
+                {isDelegated
+                  ? "Delegación a Asesor Experto"
+                  : "Checklist Híbrido Paso a Paso"}
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
@@ -625,23 +877,36 @@ export default function WorkspaceView({
           {/* Top-right meta badges */}
           <div className="flex flex-row md:flex-col items-center md:items-end gap-4 md:gap-2 shrink-0 bg-slate-50/60 px-4 py-3 rounded-2xl border border-gray-100/80 min-w-full md:min-w-[190px] md:text-right">
             <div className="flex-1 md:flex-initial">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">Tipo de Trámite</p>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                Tipo de Trámite
+              </p>
               <div className="mt-0.5 flex md:justify-end items-center gap-1">
-                <Globe size={12} className={procedureType === 'Privado' ? 'text-purple-500' : 'text-blue-500'} />
-                <span className={`inline-block text-[11px] font-extrabold ${
-                  procedureType === 'Privado' 
-                    ? 'text-purple-700' 
-                    : procedureType === 'Estatal / Privado'
-                    ? 'text-amber-700'
-                    : 'text-blue-700'
-                }`}>
+                <Globe
+                  size={12}
+                  className={
+                    procedureType === "Privado"
+                      ? "text-purple-500"
+                      : "text-blue-500"
+                  }
+                />
+                <span
+                  className={`inline-block text-[11px] font-extrabold ${
+                    procedureType === "Privado"
+                      ? "text-purple-700"
+                      : procedureType === "Estatal / Privado"
+                        ? "text-amber-700"
+                        : "text-blue-700"
+                  }`}
+                >
                   {procedureType}
                 </span>
               </div>
             </div>
 
             <div className="flex-1 md:flex-initial border-l md:border-l-0 md:border-t border-gray-200 pl-4 md:pl-0 md:pt-2 w-full">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">Entidad</p>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                Entidad
+              </p>
               <div className="mt-0.5 flex md:justify-end items-center gap-1">
                 <Building size={12} className="text-slate-500 shrink-0" />
                 <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">
@@ -659,8 +924,12 @@ export default function WorkspaceView({
               <Clock size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Duración estimada</p>
-              <p className="text-xs font-bold text-slate-900">{procedure.estimatedDuration || procedure.duration}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                Duración estimada
+              </p>
+              <p className="text-xs font-bold text-slate-900">
+                {procedure.estimatedDuration || procedure.duration}
+              </p>
             </div>
           </div>
 
@@ -669,8 +938,12 @@ export default function WorkspaceView({
               <DollarSign size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Tasa del Estado</p>
-              <p className="text-xs font-bold text-slate-900">{procedure.estimatedCost}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                Tasa del Estado
+              </p>
+              <p className="text-xs font-bold text-slate-900">
+                {procedure.estimatedCost}
+              </p>
             </div>
           </div>
 
@@ -679,8 +952,12 @@ export default function WorkspaceView({
               <Award size={18} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Dificultad</p>
-              <p className={`inline-block px-2 py-0.5 mt-0.5 text-[10px] font-bold rounded-md border ${getComplexityBadgeStyle(procedure.complexity)}`}>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                Dificultad
+              </p>
+              <p
+                className={`inline-block px-2 py-0.5 mt-0.5 text-[10px] font-bold rounded-md border ${getComplexityBadgeStyle(procedure.complexity)}`}
+              >
                 {procedure.complexity}
               </p>
             </div>
@@ -688,44 +965,50 @@ export default function WorkspaceView({
         </div>
       </div>
 
-
       {/* ========================================================================= */}
       {/* ======================== FLOW A: AUTOGESTIONAR TRÁMITE ================== */}
       {/* ========================================================================= */}
       {!isDelegated ? (
         <div className="space-y-6">
-          
           {/* CHECKLIST HYBRID PROGRESS BANNER */}
           <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <CheckSquare size={18} className="text-blue-600" />
-                  <h2 className="text-lg font-black text-slate-900">Checklist de Autogestión Paso a Paso</h2>
+                  <h2 className="text-lg font-black text-slate-900">
+                    Checklist de Autogestión Paso a Paso
+                  </h2>
                 </div>
                 <p className="text-xs text-slate-500 font-medium">
-                  Completa cada acción según las indicaciones para avanzar de forma autónoma.
+                  Completa cada acción según las indicaciones para avanzar de
+                  forma autónoma.
                 </p>
               </div>
 
               {/* Progress metric box */}
               <div className="bg-blue-50/80 border border-blue-100/80 px-4 py-2.5 rounded-2xl text-right shrink-0">
-                <p className="text-[10px] font-black uppercase tracking-wider text-blue-600 font-mono">Avance en Tiempo Real</p>
-                <p className="text-lg font-black text-blue-950 font-mono">
-                  {completedStepIds.length} de {procedure.steps.length} Actividades • {completionPercentageA}%
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-600 font-mono">
+                  Avance en Tiempo Real
                 </p>
-                <p className={`text-[11px] font-bold font-sans mt-0.5 ${
-                  isAllStepsCompleted 
-                    ? 'text-emerald-700' 
-                    : isPriorStepsCompleted 
-                    ? 'text-amber-700' 
-                    : 'text-blue-700'
-                }`}>
-                  {isAllStepsCompleted 
-                    ? "Estado: Trámite finalizado" 
-                    : isPriorStepsCompleted 
-                    ? "Estado: Pendiente de recoger documento" 
-                    : "Estado: En curso"}
+                <p className="text-lg font-black text-blue-950 font-mono">
+                  {completedStepIds.length} de {procedure.steps.length}{" "}
+                  Actividades • {completionPercentageA}%
+                </p>
+                <p
+                  className={`text-[11px] font-bold font-sans mt-0.5 ${
+                    isAllStepsCompleted
+                      ? "text-emerald-700"
+                      : isPriorStepsCompleted
+                        ? "text-amber-700"
+                        : "text-blue-700"
+                  }`}
+                >
+                  {isAllStepsCompleted
+                    ? "Estado: Trámite finalizado"
+                    : isPriorStepsCompleted
+                      ? "Estado: Pendiente de recoger documento"
+                      : "Estado: En curso"}
                 </p>
               </div>
             </div>
@@ -733,9 +1016,13 @@ export default function WorkspaceView({
             {/* Dynamic Real-time Progress Bar */}
             <div className="space-y-2">
               <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-200">
-                <div 
+                <div
                   className={`h-full rounded-full transition-all duration-500 shadow-xs ${
-                    isAllStepsCompleted ? 'bg-emerald-600' : isPriorStepsCompleted ? 'bg-amber-500' : 'bg-blue-600'
+                    isAllStepsCompleted
+                      ? "bg-emerald-600"
+                      : isPriorStepsCompleted
+                        ? "bg-amber-500"
+                        : "bg-blue-600"
                   }`}
                   style={{ width: `${completionPercentageA}%` }}
                 />
@@ -749,9 +1036,12 @@ export default function WorkspaceView({
                   <CheckSquare size={16} />
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-sky-950">Acciones del Usuario (Confirmación Manual)</p>
+                  <p className="text-xs font-bold text-sky-950">
+                    Acciones del Usuario (Confirmación Manual)
+                  </p>
                   <p className="text-[11px] text-sky-800/90 leading-tight">
-                    Pagos, formularios web, citas o recojos. Marca el checkbox cuando lo hayas realizado.
+                    Pagos, formularios web, citas o recojos. Marca el checkbox
+                    cuando lo hayas realizado.
                   </p>
                 </div>
               </div>
@@ -761,15 +1051,17 @@ export default function WorkspaceView({
                   <FileUp size={16} />
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-purple-950">Evidencias (Validación por Archivo)</p>
+                  <p className="text-xs font-bold text-purple-950">
+                    Evidencias (Validación por Archivo)
+                  </p>
                   <p className="text-[11px] text-purple-800/90 leading-tight">
-                    Fotografías o certificados clave. El sistema lo completa automáticamente al subir el archivo.
+                    Fotografías o certificados clave. El sistema lo completa
+                    automáticamente al subir el archivo.
                   </p>
                 </div>
               </div>
             </div>
           </div>
-
 
           {/* INTERMEDIATE BANNER: ALL REQUIREMENTS COMPLETED EXCEPT FINAL PICKUP */}
           {isPriorStepsCompleted && !isAllStepsCompleted && (
@@ -784,23 +1076,27 @@ export default function WorkspaceView({
                       Paso Final Presencial Requerido
                     </span>
                     <span className="text-xs font-bold text-amber-850 font-mono">
-                      {completedStepIds.length} de {procedure.steps.length} Actividades ({completionPercentageA}%)
+                      {completedStepIds.length} de {procedure.steps.length}{" "}
+                      Actividades ({completionPercentageA}%)
                     </span>
                   </div>
                   <h3 className="text-lg md:text-xl font-black text-amber-950 leading-snug">
                     ¡Excelente! Ya completaste todos los requisitos del trámite.
                   </h3>
                   <p className="text-xs md:text-sm text-amber-900 font-medium leading-relaxed">
-                    Solo queda acudir a la oficina o sede correspondiente para recoger tu documento.
+                    Solo queda acudir a la oficina o sede correspondiente para
+                    recoger tu documento.
                   </p>
                   <p className="text-[11px] text-amber-850 font-semibold italic pt-1 border-t border-amber-200/80 mt-2">
-                    📌 Una vez que hayas acudido a la entidad pública y tengas tu documento en mano, marca la casilla del último paso ("{lastStep?.title}") en el checklist para dar por finalizado tu trámite al 100%.
+                    📌 Una vez que hayas acudido a la entidad pública y tengas
+                    tu documento en mano, marca la casilla del último paso ("
+                    {lastStep?.title}") en el checklist para dar por finalizado
+                    tu trámite al 100%.
                   </p>
                 </div>
               </div>
             </div>
           )}
-
 
           {/* DEFINITIVE COMPLETION BANNER: 100% COMPLETE */}
           {isAllStepsCompleted && (
@@ -816,7 +1112,9 @@ export default function WorkspaceView({
                   ¡Has completado al 100% tu trámite! 🎉
                 </h3>
                 <p className="text-xs text-emerald-800 font-medium leading-relaxed">
-                  Todas las actividades del trámite, incluyendo la recogida oficial del documento en la entidad pública, han sido completadas con éxito.
+                  Todas las actividades del trámite, incluyendo la recogida
+                  oficial del documento en la entidad pública, han sido
+                  completadas con éxito.
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-3 pt-2">
@@ -837,48 +1135,65 @@ export default function WorkspaceView({
             </div>
           )}
 
-
           {/* COMPACT ACCORDION CHECKLIST ITEM LIST */}
           <div className="space-y-2">
             {procedure.steps.map((step, idx) => {
-              const isEvidenceStep = isStepEvidenceRequired(step, procedure, requirements);
+              const isEvidenceStep = isStepEvidenceRequired(
+                step,
+                procedure,
+                requirements,
+              );
               const isStepDone = completedStepIds.includes(step.id);
               const isExpanded = expandedStepId === step.id;
-              const stepReq = requirements.find(r => r.requiredForStepId === step.id) || requirements[0];
-              const paymentInfo = getPaymentInfo(step.title, step.description, procedure.id);
-              const officialUrl = getStepOfficialUrl(step.id, procedure.id, officialSource.url);
+              const stepReq =
+                requirements.find((r) => r.requiredForStepId === step.id) ||
+                requirements[0];
+              const paymentInfo = getPaymentInfo(
+                step.title,
+                step.description,
+                procedure.id,
+              );
+              const officialUrl = getStepOfficialUrl(
+                step.id,
+                procedure.id,
+                officialSource.url,
+              );
 
               return (
-                <div 
-                  key={step.id} 
+                <div
+                  key={step.id}
                   className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                    isStepDone 
-                      ? 'bg-emerald-50/20 border-emerald-200/70' 
+                    isStepDone
+                      ? "bg-emerald-50/20 border-emerald-200/70"
                       : isExpanded
-                        ? 'bg-white border-blue-500 shadow-2xs ring-1 ring-blue-500/10'
-                        : 'bg-white border-gray-200 hover:border-gray-300'
+                        ? "bg-white border-blue-500 shadow-2xs ring-1 ring-blue-500/10"
+                        : "bg-white border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   {/* Step Header (Clickable Accordion Row) */}
-                  <div 
+                  <div
                     onClick={() => toggleStepExpand(step.id)}
                     className="p-2.5 sm:p-3 flex items-center justify-between gap-3 cursor-pointer select-none"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {/* Step Number Badge */}
-                      <div className={`w-5.5 h-5.5 rounded-md flex items-center justify-center text-[10px] font-black font-mono shrink-0 ${
-                        isStepDone 
-                          ? 'bg-emerald-600 text-white' 
-                          : isExpanded
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-900 text-white'
-                      }`}>
-                        {isStepDone ? '✓' : idx + 1}
+                      <div
+                        className={`w-5.5 h-5.5 rounded-md flex items-center justify-center text-[10px] font-black font-mono shrink-0 ${
+                          isStepDone
+                            ? "bg-emerald-600 text-white"
+                            : isExpanded
+                              ? "bg-blue-600 text-white"
+                              : "bg-slate-900 text-white"
+                        }`}
+                      >
+                        {isStepDone ? "✓" : idx + 1}
                       </div>
 
                       {/* Step Title & Type Badge */}
                       <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                        <h3 className={`text-xs sm:text-sm font-extrabold truncate ${isStepDone ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                        <h3
+                          className={`text-xs sm:text-sm font-extrabold truncate ${isStepDone ? "text-slate-500 line-through" : "text-slate-900"}`}
+                        >
                           {step.title}
                         </h3>
 
@@ -913,7 +1228,11 @@ export default function WorkspaceView({
                       )}
 
                       <div className="text-slate-400 p-0.5">
-                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {isExpanded ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -936,8 +1255,15 @@ export default function WorkspaceView({
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-md border border-gray-200 transition-all cursor-pointer shadow-2xs"
                           >
                             <Globe size={12} className="text-blue-600" />
-                            <span>{paymentInfo ? paymentInfo.label : "Ir al Portal Oficial"}</span>
-                            <ExternalLink size={10} className="text-slate-400" />
+                            <span>
+                              {paymentInfo
+                                ? paymentInfo.label
+                                : "Ir al Portal Oficial"}
+                            </span>
+                            <ExternalLink
+                              size={10}
+                              className="text-slate-400"
+                            />
                           </a>
                         </div>
                       )}
@@ -946,19 +1272,31 @@ export default function WorkspaceView({
                       <div className="pl-8">
                         {isEvidenceStep ? (
                           <div className="mt-1">
-                            {!isStepDone || (stepReq && stepReq.status === 'Corregir') ? (
+                            {!isStepDone ||
+                            (stepReq && stepReq.status === "Corregir") ? (
                               <div className="p-2.5 bg-purple-50/40 border border-purple-200/80 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 text-purple-950 font-bold text-xs">
-                                  <UploadCloud size={15} className="text-purple-600 shrink-0" />
+                                  <UploadCloud
+                                    size={15}
+                                    className="text-purple-600 shrink-0"
+                                  />
                                   <div className="text-left">
-                                    <p className="text-xs font-bold text-purple-950">Adjuntar evidencia requerida</p>
-                                    <p className="text-[10px] text-slate-500 font-normal">Validación automática por IA de TramIA</p>
+                                    <p className="text-xs font-bold text-purple-950">
+                                      Adjuntar evidencia requerida
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-normal">
+                                      Validación automática por IA de TramIA
+                                    </p>
                                   </div>
                                 </div>
 
-                                 {isScanning && uploadingReqId === (stepReq?.id || step.id) ? (
+                                {isScanning &&
+                                uploadingReqId === (stepReq?.id || step.id) ? (
                                   <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-bold animate-pulse">
-                                    <RefreshCw className="animate-spin" size={14} />
+                                    <RefreshCw
+                                      className="animate-spin"
+                                      size={14}
+                                    />
                                     <span>{scanStep}</span>
                                   </div>
                                 ) : (
@@ -966,7 +1304,9 @@ export default function WorkspaceView({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleTriggerUpload(stepReq?.id || step.id);
+                                        handleTriggerUpload(
+                                          stepReq?.id || step.id,
+                                        );
                                       }}
                                       className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
                                     >
@@ -979,10 +1319,15 @@ export default function WorkspaceView({
                             ) : (
                               <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                  <CheckCircle2
+                                    size={15}
+                                    className="text-emerald-600 shrink-0"
+                                  />
                                   <div className="min-w-0">
                                     <p className="text-xs font-bold text-emerald-950 truncate">
-                                      Evidencia validada: {stepReq?.uploadedFileName || 'Documento cargado'}
+                                      Evidencia validada:{" "}
+                                      {stepReq?.uploadedFileName ||
+                                        "Documento cargado"}
                                     </p>
                                     {stepReq?.feedbackMessage && (
                                       <p className="text-[10px] text-emerald-800 line-clamp-1">
@@ -1012,21 +1357,25 @@ export default function WorkspaceView({
                               }}
                               className={`w-full p-2 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                                 isStepDone
-                                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs'
-                                  : 'bg-white border-gray-200 hover:border-sky-400 hover:bg-sky-50/20 text-slate-800'
+                                  ? "bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs"
+                                  : "bg-white border-gray-200 hover:border-sky-400 hover:bg-sky-50/20 text-slate-800"
                               }`}
                             >
                               <div className="flex items-center gap-2">
-                                <div className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-all shrink-0 ${
-                                  isStepDone
-                                    ? 'bg-emerald-600 border-emerald-600 text-white'
-                                    : 'bg-white border-gray-300 text-transparent'
-                                }`}>
+                                <div
+                                  className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-all shrink-0 ${
+                                    isStepDone
+                                      ? "bg-emerald-600 border-emerald-600 text-white"
+                                      : "bg-white border-gray-300 text-transparent"
+                                  }`}
+                                >
                                   <Check size={12} strokeWidth={3} />
                                 </div>
                                 <div>
                                   <p className="text-xs font-extrabold">
-                                    {isStepDone ? 'Actividad completada ✓' : 'Marcar actividad como realizada'}
+                                    {isStepDone
+                                      ? "Actividad completada ✓"
+                                      : "Marcar actividad como realizada"}
                                   </p>
                                 </div>
                               </div>
@@ -1046,14 +1395,12 @@ export default function WorkspaceView({
               );
             })}
           </div>
-
         </div>
       ) : (
         /* ========================================================================= */
         /* ======================== FLOW B: DELEGATE TO TRAMIA ===================== */
         /* ========================================================================= */
         <div className="space-y-6">
-          
           {allDocumentsApproved ? (
             !isPaid ? (
               /* SERVICE SUMMARY VIEW FOR DELEGATION */
@@ -1062,26 +1409,36 @@ export default function WorkspaceView({
                   <span className="px-3 py-1 text-[10px] font-bold font-mono tracking-wider uppercase rounded-full bg-blue-50 text-blue-700 border border-blue-100">
                     Paso final de delegación
                   </span>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight mt-1">Resumen del Servicio</h3>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight mt-1">
+                    Resumen del Servicio
+                  </h3>
                   <p className="text-xs text-slate-500">
-                    Revisa los detalles de tu trámite delegado y la tarifa correspondiente antes de iniciar el pago seguro y comenzar la delegación.
+                    Revisa los detalles de tu trámite delegado y la tarifa
+                    correspondiente antes de iniciar el pago seguro y comenzar
+                    la delegación.
                   </p>
                 </div>
 
                 {/* Assigned Advisor Info */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-5 p-4 bg-slate-50 border border-gray-200/55 rounded-2xl">
                   <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <img 
-                      src={advisor.avatar} 
-                      alt={advisor.name} 
-                      className="w-14 h-14 rounded-full object-cover ring-4 ring-blue-50 border-2 border-white shadow-md shrink-0" 
+                    <img
+                      src={advisor.avatar}
+                      alt={advisor.name}
+                      className="w-14 h-14 rounded-full object-cover ring-4 ring-blue-50 border-2 border-white shadow-md shrink-0"
                     />
                     <div className="text-center sm:text-left space-y-1">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[9px] font-black tracking-wider uppercase font-mono">
                         Asesor Experto Asignado
                       </span>
-                      <h4 className="text-xs font-black text-slate-900">{advisor.name} te ayudará a gestionar este procedimiento.</h4>
-                      <p className="text-[11px] text-gray-500">{advisor.colegiatura} • Contarás con un asesor humano durante todo el proceso del trámite delegado.</p>
+                      <h4 className="text-xs font-black text-slate-900">
+                        {advisor.name} te ayudará a gestionar este
+                        procedimiento.
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        {advisor.colegiatura} • Contarás con un asesor humano
+                        durante todo el proceso del trámite delegado.
+                      </p>
                     </div>
                   </div>
                   <button
@@ -1095,24 +1452,37 @@ export default function WorkspaceView({
 
                 {/* Cost Breakdown Grid */}
                 <div className="space-y-4 pt-1">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono">Desglose del Costo</h4>
-                  
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 font-mono">
+                    Desglose del Costo
+                  </h4>
+
                   <div className="divide-y divide-gray-100 border border-gray-150 rounded-2xl bg-slate-50/20 overflow-hidden text-xs">
                     <div className="p-4 flex justify-between items-center">
                       <div className="space-y-0.5">
-                        <span className="text-slate-600 font-medium block">Honorarios del Asesor (Tarifa de Servicio TramIA)</span>
-                        <span className="text-[10px] text-gray-400 block font-light">Asistencia experta premium, revisión continua de documentos y presentación formal</span>
+                        <span className="text-slate-600 font-medium block">
+                          Honorarios del Asesor (Tarifa de Servicio TramIA)
+                        </span>
+                        <span className="text-[10px] text-gray-400 block font-light">
+                          Asistencia experta premium, revisión continua de
+                          documentos y presentación formal
+                        </span>
                       </div>
-                      <span className="font-bold text-slate-900 font-mono">{procedure.feeAmount || 'S/. 65.00'}</span>
+                      <span className="font-bold text-slate-900 font-mono">
+                        {procedure.feeAmount || "S/. 65.00"}
+                      </span>
                     </div>
 
                     <div className="p-4 bg-blue-50/30 flex justify-between items-center border-t border-blue-100">
                       <div className="space-y-0.5">
-                        <span className="text-blue-900 font-black text-xs block uppercase tracking-wider">Monto Total</span>
-                        <span className="text-[10px] text-blue-700 font-medium block">Pago seguro cifrado por PCI-DSS</span>
+                        <span className="text-blue-900 font-black text-xs block uppercase tracking-wider">
+                          Monto Total
+                        </span>
+                        <span className="text-[10px] text-blue-700 font-medium block">
+                          Pago seguro cifrado por PCI-DSS
+                        </span>
                       </div>
                       <span className="font-black text-lg text-blue-950 font-mono">
-                        {procedure.feeAmount || 'S/. 65.00'}
+                        {procedure.feeAmount || "S/. 65.00"}
                       </span>
                     </div>
                   </div>
@@ -1121,13 +1491,23 @@ export default function WorkspaceView({
                 {/* Estimation and metrics */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 border border-gray-150 rounded-2xl bg-white space-y-1">
-                    <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider font-mono block">Tiempo Estimado</span>
-                    <p className="text-xs font-bold text-slate-900">{procedure.estimatedDuration || procedure.duration || "5 días hábiles"}</p>
+                    <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider font-mono block">
+                      Tiempo Estimado
+                    </span>
+                    <p className="text-xs font-bold text-slate-900">
+                      {procedure.estimatedDuration ||
+                        procedure.duration ||
+                        "5 días hábiles"}
+                    </p>
                   </div>
 
                   <div className="p-4 border border-gray-150 rounded-2xl bg-white space-y-1">
-                    <span className="text-[9px] font-black uppercase text-emerald-600 tracking-wider font-mono block">Tiempo Ahorrado</span>
-                    <p className="text-xs font-bold text-emerald-700">12 horas de colas y papeleo</p>
+                    <span className="text-[9px] font-black uppercase text-emerald-600 tracking-wider font-mono block">
+                      Tiempo Ahorrado
+                    </span>
+                    <p className="text-xs font-bold text-emerald-700">
+                      12 horas de colas y papeleo
+                    </p>
                   </div>
                 </div>
 
@@ -1158,12 +1538,20 @@ export default function WorkspaceView({
                       setTimeout(() => {
                         setIsPaying(false);
                         setIsPaid(true);
-                        trackEvent('tramite_delegado_pagado', {
+                        trackEvent("tramite_delegado_pagado", {
                           procedure_id: procedure.id,
                           procedure_title: procedure.title,
-                          amount: procedure.feeAmount || 'S/. 65.00'
+                          amount: procedure.feeAmount || "S/. 65.00",
                         });
-                        onAddActiveProcedure(procedure, completionPercentageB, true, requirements, undefined, true, true);
+                        onAddActiveProcedure(
+                          procedure,
+                          completionPercentageB,
+                          true,
+                          requirements,
+                          undefined,
+                          true,
+                          true,
+                        );
                       }, 1800);
                     }}
                     disabled={isPaying}
@@ -1191,24 +1579,35 @@ export default function WorkspaceView({
                     ✓
                   </div>
                   <div className="space-y-1.5">
-                    <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Pago Confirmado</h3>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                      Pago Confirmado
+                    </h3>
                     <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                      Tu Asesor de TramIA comenzará a gestionar tu trámite ante la entidad pública.
+                      Tu Asesor de TramIA comenzará a gestionar tu trámite ante
+                      la entidad pública.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 p-4 border border-gray-100 bg-slate-50 rounded-2xl">
                   <div className="flex items-center gap-4">
-                    <img 
-                      src={advisor.avatar} 
-                      alt={advisor.name} 
-                      className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-50 border border-white shrink-0" 
+                    <img
+                      src={advisor.avatar}
+                      alt={advisor.name}
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-50 border border-white shrink-0"
                     />
                     <div className="space-y-0.5">
-                      <span className="text-[9px] font-black tracking-wider uppercase text-emerald-600 font-mono block">Asesor Asignado</span>
-                      <h4 className="text-xs font-bold text-slate-900">{advisor.name} te ayudará a gestionar este procedimiento.</h4>
-                      <p className="text-[10px] text-gray-500">Contarás con un asesor humano durante todo el proceso del trámite delegado.</p>
+                      <span className="text-[9px] font-black tracking-wider uppercase text-emerald-600 font-mono block">
+                        Asesor Asignado
+                      </span>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        {advisor.name} te ayudará a gestionar este
+                        procedimiento.
+                      </h4>
+                      <p className="text-[10px] text-gray-500">
+                        Contarás con un asesor humano durante todo el proceso
+                        del trámite delegado.
+                      </p>
                     </div>
                   </div>
                   <button
@@ -1221,7 +1620,9 @@ export default function WorkspaceView({
                 </div>
 
                 <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <span className="text-[10px] text-gray-400 font-mono">Código de seguimiento: TRM-{procedure.id.toUpperCase()}-94A</span>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    Código de seguimiento: TRM-{procedure.id.toUpperCase()}-94A
+                  </span>
                   <button
                     onClick={onBack}
                     className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer"
@@ -1236,20 +1637,30 @@ export default function WorkspaceView({
             <div className="space-y-6 max-w-2xl mx-auto">
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">Documentos Necesarios para la Delegación</h3>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Documentos Necesarios para la Delegación
+                  </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Sube los documentos requeridos para que tu gestor pueda representarte formalmente ante la entidad.
+                    Sube los documentos requeridos para que tu gestor pueda
+                    representarte formalmente ante la entidad.
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   {requirements.map((req) => (
-                    <div key={req.id} className="p-4 bg-slate-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-4">
+                    <div
+                      key={req.id}
+                      className="p-4 bg-slate-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-4"
+                    >
                       <div>
-                        <h4 className="text-xs font-bold text-slate-900">{req.name}</h4>
-                        <p className="text-[11px] text-slate-500">{req.description}</p>
+                        <h4 className="text-xs font-bold text-slate-900">
+                          {req.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          {req.description}
+                        </p>
                       </div>
-                      {req.status === 'Aprobado' ? (
+                      {req.status === "Aprobado" ? (
                         <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md uppercase font-mono">
                           Cargado ✓
                         </span>
@@ -1270,17 +1681,20 @@ export default function WorkspaceView({
               {/* Advisor Card in Delegated Flow */}
               <div className="bg-white border border-gray-200 rounded-3xl p-5 md:p-6 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <img 
-                    src={advisor.avatar} 
-                    alt={advisor.name} 
-                    className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100 border border-slate-200 shrink-0" 
+                  <img
+                    src={advisor.avatar}
+                    alt={advisor.name}
+                    className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100 border border-slate-200 shrink-0"
                   />
                   <div className="space-y-1 text-center sm:text-left">
                     <h4 className="text-sm font-bold text-slate-900">
                       {advisor.name} te ayudará a gestionar este procedimiento.
                     </h4>
                     <p className="text-xs text-slate-500 leading-relaxed max-w-lg">
-                      Antes de que el asesor comience con las gestiones presenciales o aranceles, TramIA necesita todos tus documentos obligatorios. Contarás con la asistencia de un asesor humano en todo momento.
+                      Antes de que el asesor comience con las gestiones
+                      presenciales o aranceles, TramIA necesita todos tus
+                      documentos obligatorios. Contarás con la asistencia de un
+                      asesor humano en todo momento.
                     </p>
                   </div>
                 </div>
@@ -1294,19 +1708,18 @@ export default function WorkspaceView({
               </div>
             </div>
           )}
-
         </div>
       )}
 
       {/* TramIA Bot Modal */}
       {isBotChatOpen && (
-        <TramIABot 
+        <TramIABot
           procedure={procedure}
           requirements={requirements}
           isPaid={isPaid}
           advisorName={advisor.name}
           isOpen={isBotChatOpen}
-          onClose={() => setIsBotChatOpen(false)} 
+          onClose={() => setIsBotChatOpen(false)}
         />
       )}
 
@@ -1319,13 +1732,20 @@ export default function WorkspaceView({
                 <Trash2 size={20} />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">¿Eliminar este trámite?</h3>
-                <p className="text-xs text-slate-500 font-medium">Esta acción no se puede deshacer.</p>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  ¿Eliminar este trámite?
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Esta acción no se puede deshacer.
+                </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-gray-200">
-              Se eliminará permanentemente <strong className="text-slate-900">"{procedure.title}"</strong> de tu lista de trámites en proceso, perdiendo todo el avance del checklist y los documentos adjuntos.
+              Se eliminará permanentemente{" "}
+              <strong className="text-slate-900">"{procedure.title}"</strong> de
+              tu lista de trámites en proceso, perdiendo todo el avance del
+              checklist y los documentos adjuntos.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -1361,17 +1781,25 @@ export default function WorkspaceView({
                 <Lock size={20} />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Opción no disponible</h3>
-                <p className="text-xs text-amber-600 font-bold">Trámite en gestión activa por asesor</p>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Opción no disponible
+                </h3>
+                <p className="text-xs text-amber-600 font-bold">
+                  Trámite en gestión activa por asesor
+                </p>
               </div>
             </div>
 
             <div className="space-y-2 text-xs text-slate-600 leading-relaxed bg-amber-50/50 p-4 rounded-2xl border border-amber-200/80">
               <p>
-                Este trámite fue abonado y asignado a tu asesor experto <strong className="text-slate-900">{advisor.name}</strong>, quien ya inició las gestiones formales ante la entidad pública.
+                Este trámite fue abonado y asignado a tu asesor experto{" "}
+                <strong className="text-slate-900">{advisor.name}</strong>,
+                quien ya inició las gestiones formales ante la entidad pública.
               </p>
               <p className="text-[11px] text-slate-500 font-medium pt-1">
-                Por seguridad y cumplimiento legal, no es posible eliminar solicitudes activas pagadas. Si requieres cancelar o solicitar una reasignación, contacta a soporte de TramIA.
+                Por seguridad y cumplimiento legal, no es posible eliminar
+                solicitudes activas pagadas. Si requieres cancelar o solicitar
+                una reasignación, contacta a soporte de TramIA.
               </p>
             </div>
 
@@ -1388,7 +1816,70 @@ export default function WorkspaceView({
       )}
 
       {/* Document Validation Modal Integration */}
-      {actionStep&&<div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4"><form onSubmit={e=>{e.preventDefault();void completeAction()}} className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl"><p className="text-xs font-black uppercase tracking-widest text-blue-600">Completar etapa</p><h2 className="mt-2 text-2xl font-black">{actionStep.title}</h2><p className="mt-2 text-sm text-slate-500">{actionStep.description}</p><div className="mt-5 space-y-4">{actionStep.dateTrackingType&&<label className="block text-xs font-black">Selecciona la fecha<input type="date" required className="field-input mt-2" value={actionData.date||''} onChange={e=>setActionData({...actionData,date:e.target.value})}/></label>}<label className="block text-xs font-black">Información o referencia<textarea className="field-input mt-2 min-h-24" required value={actionData.notes||''} onChange={e=>setActionData({...actionData,notes:e.target.value})}/></label><label className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900"><input type="checkbox" required/>Marcar etapa como realizada. Al confirmar, quedará bloqueada y no se podrá modificar.</label></div><div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onClick={()=>setActionStep(null)} className="min-h-11 rounded-xl bg-slate-100 font-black">Cancelar</button><button className="min-h-11 rounded-xl bg-blue-600 font-black text-white">Guardar y completar</button></div></form></div>}
+      {actionStep && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void completeAction();
+            }}
+            className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl"
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
+              Completar etapa
+            </p>
+            <h2 className="mt-2 text-2xl font-black">{actionStep.title}</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {actionStep.description}
+            </p>
+            <div className="mt-5 space-y-4">
+              {(actionStep.dateTrackingType||actionStep.completionMode==='date') && (
+                <label className="block text-xs font-black">
+                  Selecciona la fecha
+                  <input
+                    type="date"
+                    required
+                    className="field-input mt-2"
+                    value={actionData.date || ""}
+                    onChange={(e) =>
+                      setActionData({ ...actionData, date: e.target.value })
+                    }
+                  />
+                </label>
+              )}
+              {actionStep.actionConfig?.fields?.map(field=><label key={field.key} className="block text-xs font-black">{field.label}{field.type==='select'?<select required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}><option value="">Selecciona</option>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:<input type={field.type||'text'} required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}/>}</label>)}
+              <label className="block text-xs font-black">
+                Información o referencia
+                <textarea
+                  className="field-input mt-2 min-h-24"
+                  required
+                  value={actionData.notes || ""}
+                  onChange={(e) =>
+                    setActionData({ ...actionData, notes: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                <input type="checkbox" required />
+                Marcar etapa como realizada. Al confirmar, quedará bloqueada y
+                no se podrá modificar.
+              </label>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setActionStep(null)}
+                className="min-h-11 rounded-xl bg-slate-100 font-black"
+              >
+                Cancelar
+              </button>
+              <button className="min-h-11 rounded-xl bg-blue-600 font-black text-white">
+                Guardar y completar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       <DocumentValidationModal
         isOpen={isValidationModalOpen}
         onClose={() => setIsValidationModalOpen(false)}
@@ -1397,30 +1888,33 @@ export default function WorkspaceView({
         onValidationSuccess={(result, fileName) => {
           if (!activeValidationRequirement) return;
           const targetReqId = activeValidationRequirement.id;
-          
-          setRequirements(prev => prev.map(r => {
-            if (r.id === targetReqId) {
-              return {
-                ...r,
-                status: result.isValidated ? 'Aprobado' : 'Corregir',
-                uploadedFileName: fileName,
-                feedbackMessage: result.summary,
-                imageQuality: result.imageQuality as any,
-                isValidated: result.isValidated,
-                recommendations: result.recommendations,
-                detectedErrors: result.detectedIssues?.map(i => i.title)
-              };
-            }
-            return r;
-          }));
+
+          setRequirements((prev) =>
+            prev.map((r) => {
+              if (r.id === targetReqId) {
+                return {
+                  ...r,
+                  status: result.isValidated ? "Aprobado" : "Corregir",
+                  uploadedFileName: fileName,
+                  feedbackMessage: result.summary,
+                  imageQuality: result.imageQuality as any,
+                  isValidated: result.isValidated,
+                  recommendations: result.recommendations,
+                  detectedErrors: result.detectedIssues?.map((i) => i.title),
+                };
+              }
+              return r;
+            }),
+          );
 
           if (result.isValidated) {
             const targetStepId = activeValidationRequirement.requiredForStepId;
-            setCompletedStepIds(prev => Array.from(new Set([...prev, targetStepId])));
+            setCompletedStepIds((prev) =>
+              Array.from(new Set([...prev, targetStepId])),
+            );
           }
         }}
       />
-
     </div>
   );
 }

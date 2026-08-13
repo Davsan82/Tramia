@@ -127,6 +127,8 @@ export default function HomeView({
   const [query, setQuery] = useState('');
   const [slide, setSlide] = useState(() => Math.floor(Math.random() * slides.length));
   const [paused, setPaused] = useState(false);
+  const [publicSettings,setPublicSettings]=useState<any>({landing:{showTestimonials:true,showTrustBar:true,showLifeMoments:true}});
+  useEffect(()=>{fetch('/api/v1/public/settings').then(r=>r.json()).then(p=>setPublicSettings(p.settings||{})).catch(()=>{})},[]);
 
   useEffect(() => {
     if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -242,7 +244,7 @@ export default function HomeView({
         </div>
       </section>
 
-      <section className="border-b border-slate-200 bg-white py-10 sm:py-14">
+      {publicSettings.landing?.showLifeMoments!==false&&<section className="border-b border-slate-200 bg-white py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-7 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
@@ -262,7 +264,7 @@ export default function HomeView({
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
       <section className="relative overflow-hidden bg-[linear-gradient(145deg,#fafdff_0%,#eef7ff_62%,#e8f4ff_100%)] py-14 sm:py-20">
         <div className="pointer-events-none absolute inset-0 opacity-50" aria-hidden="true"><div className="absolute -right-20 -top-24 size-96 rounded-full bg-cyan-100 blur-3xl" /><div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-blue-100 blur-3xl" /></div>
@@ -311,9 +313,9 @@ export default function HomeView({
         </div>
       </section>
 
-      {testimonialSection.enabled && <TestimonialsSection />}
+      {testimonialSection.enabled && publicSettings.landing?.showTestimonials!==false && <TestimonialsSection />}
 
-      <section className="border-y border-slate-200 bg-white py-7 sm:py-8">
+      {publicSettings.landing?.showTrustBar!==false&&<section className="border-y border-slate-200 bg-white py-7 sm:py-8">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-y-6 px-4 min-[420px]:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:gap-y-0 lg:px-8">
           {[
             { title: 'Información confiable', text: 'Fuentes oficiales identificadas y fechadas.', icon: ShieldCheck },
@@ -327,7 +329,7 @@ export default function HomeView({
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       <footer className="bg-[#061735] text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">

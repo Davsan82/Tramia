@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0] - 2026-08-13
+
+### Agregado
+
+- Prerrequisitos obligatorios para delegación, selección de asesor y pago simulado con tarjeta guardada.
+- Perfil profesional del asesor con identidad verificada, disponibilidad, capacidad, tarifa y reputación.
+- Acciones de trámite configurables como fecha, formulario, archivo, confirmación o enlace externo.
+- Tarjeta ficticia predeterminada, eliminación de medios e historial de recibos simulados.
+- Configuración pública para bloques de landing y canales de atención.
+- Control administrativo de pagos, calificaciones e indicadores operativos.
+
+### Mejorado
+
+- Paleta violeta diferenciada para asesores y administración.
+- Documentación OpenAPI y división de dependencias del bundle.
+
 Todos los cambios importantes de TramIA se documentarán en este archivo.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)

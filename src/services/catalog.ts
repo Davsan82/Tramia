@@ -29,7 +29,7 @@ type ApiDetail = ApiListItem & {
     title: string;
     description: string;
     position: number;
-    completionMode: string;
+    completionMode: 'manual'|'form'|'upload'|'date'|'external';
     officialUrl?: string;
     stageId?: string;
     stepType?: string;
@@ -37,6 +37,7 @@ type ApiDetail = ApiListItem & {
     whyItMatters?: string;
     nextStepHint?: string;
     dateTrackingType?: string;
+    actionConfig?: any;
     reminderOffsets?: string[];
     checklistItems?: Array<{ id: string; label: string; isRequired: boolean }>;
     dependsOn?: string[];
@@ -88,7 +89,7 @@ function mapDetail(item: ApiDetail): Procedure {
     description: step.description,
     status: 'PENDIENTE',
     order: step.position,
-    requiresEvidence: step.completionMode === 'evidence',
+    requiresEvidence: step.completionMode === 'upload',
     actionUrl: step.officialUrl,
     actionUrlLabel: step.officialUrl ? 'Ir al sitio oficial' : undefined,
     stageId: step.stageId,
@@ -98,6 +99,8 @@ function mapDetail(item: ApiDetail): Procedure {
     whyItMatters: step.whyItMatters,
     nextStepHint: step.nextStepHint,
     dateTrackingType: step.dateTrackingType,
+    completionMode: step.completionMode,
+    actionConfig: step.actionConfig,
     reminderOffsets: step.reminderOffsets,
     checklistItems: step.checklistItems,
     dependsOn: step.dependsOn,

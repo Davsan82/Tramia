@@ -15,6 +15,8 @@ export interface Step {
   nextStepHint?: string;
   dateTrackingType?: string;
   reminderOffsets?: string[];
+  completionMode?: 'manual'|'form'|'upload'|'date'|'external';
+  actionConfig?: {fields?:Array<{key:string;label:string;type?:string;required?:boolean;options?:string[]}>};
   checklistItems?: Array<{ id: string; label: string; isRequired: boolean }>;
   dependsOn?: string[];
 }

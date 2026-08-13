@@ -41,12 +41,20 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 
 ### Demostrativo o pendiente
 
+> Actualización 0.5.0: el inicio, checklist, acciones y avance ya se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago simulado, conversación y seguimiento.
+
+Los pagos y devoluciones continúan siendo exclusivamente simulados: no existe movimiento financiero real ni se almacenan PAN o CVV.
+
 - El inicio, checklist y avance completo de un trámite todavía usan estado transitorio en memoria mientras se completa su persistencia en Neon.
 - La carga de documentos a almacenamiento de objetos está pendiente.
 - La validación documental con IA es una simulación y no constituye revisión oficial.
 - La delegación, asignación de asesores y los pagos son demostrativos.
 - No se presentan solicitudes automáticamente ante entidades públicas.
 - No existe firma digital ni login social OAuth.
+
+### Seguridad de dependencias
+
+`npm audit` reporta cuatro advertencias moderadas en dependencias transitivas de desarrollo de `drizzle-kit`. No tienen corrección publicada, no forman parte del runtime desplegado y se revisarán cuando Drizzle publique una actualización compatible.
 
 > [!WARNING]
 > No ingreses Clave SOL, PAN, CVV, contraseñas de entidades ni documentos sensibles en funciones demostrativas. TramIA no almacena ni debe solicitar la Clave SOL.
@@ -178,22 +186,22 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 
 ## Scripts
 
-| Comando | Descripción |
-| --- | --- |
-| `npm run dev` | Inicia Express y Vite para desarrollo. |
-| `npm run lint` | Comprueba TypeScript sin emitir archivos. |
-| `npm run build` | Genera el frontend y empaqueta el servidor. |
-| `npm start` | Ejecuta el build del servidor. |
-| `npm run db:check` | Valida el historial de Drizzle. |
-| `npm run db:migrate` | Ejecuta migraciones pendientes. |
-| `npm run db:seed` | Carga los datos maestros iniciales. |
+| Comando                                      | Descripción                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| `npm run dev`                                | Inicia Express y Vite para desarrollo.                                 |
+| `npm run lint`                               | Comprueba TypeScript sin emitir archivos.                              |
+| `npm run build`                              | Genera el frontend y empaqueta el servidor.                            |
+| `npm start`                                  | Ejecuta el build del servidor.                                         |
+| `npm run db:check`                           | Valida el historial de Drizzle.                                        |
+| `npm run db:migrate`                         | Ejecuta migraciones pendientes.                                        |
+| `npm run db:seed`                            | Carga los datos maestros iniciales.                                    |
 | `npm run admin:assign -- correo@dominio.com` | Asigna de forma explícita el rol administrador a una cuenta existente. |
-| `npm run security:check` | Busca secretos comprometidos en archivos versionados. |
-| `npm run encoding:check` | Verifica UTF-8 y detecta texto potencialmente dañado por mojibake. |
-| `npm run version:check -- vX.Y.Z` | Comprueba la correspondencia entre tag y paquete. |
-| `npm run release:patch` | Prepara una corrección compatible. |
-| `npm run release:minor` | Prepara una versión con funcionalidad nueva. |
-| `npm run release:major` | Prepara un cambio mayor. |
+| `npm run security:check`                     | Busca secretos comprometidos en archivos versionados.                  |
+| `npm run encoding:check`                     | Verifica UTF-8 y detecta texto potencialmente dañado por mojibake.     |
+| `npm run version:check -- vX.Y.Z`            | Comprueba la correspondencia entre tag y paquete.                      |
+| `npm run release:patch`                      | Prepara una corrección compatible.                                     |
+| `npm run release:minor`                      | Prepara una versión con funcionalidad nueva.                           |
+| `npm run release:major`                      | Prepara un cambio mayor.                                               |
 
 ## Versionado y releases
 
