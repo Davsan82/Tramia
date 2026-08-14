@@ -54,6 +54,8 @@ export interface Advisor {
 export interface TramiteOption {
   id: string;
   databaseId?: string;
+  /** Identificador de una gestión concreta del usuario, no del catálogo. */
+  userProcedureId?: string;
   title: string;
   category: 'Identidad' | 'Transporte' | 'Negocios' | 'Finanzas' | 'Familia' | 'Viajes' | string;
   description: string;
@@ -63,6 +65,7 @@ export interface TramiteOption {
   estimatedDuration: string; // compatible con vistas anteriores
   entity?: string; // Entidad responsable (RENIEC, SUNAT, MTC, etc.)
   officialUrl?: string; // Fuente oficial almacenada en el catálogo
+  procedureType?: 'government' | 'private' | 'mixed' | 'consular' | string;
   modality?: 'Virtual' | 'Presencial' | 'Mixta' | string; // Modalidad
   requirements: Requirement[];
   steps: Step[];

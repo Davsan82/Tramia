@@ -22,7 +22,7 @@ export default function TramIABot({
   procedure,
   requirements,
   isPaid,
-  advisorName = "Dr. Rodrigo Peralta",
+  advisorName = "Asesor TramIA",
   isOpen,
   onClose
 }: TramIABotProps) {

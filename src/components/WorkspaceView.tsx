@@ -36,7 +36,6 @@ import {
   Eye,
 } from "lucide-react";
 import { Procedure, Requirement, Step } from "../types";
-import { GESTORES_VERIFICADOS } from "../data";
 import TramIABot from "./TramIABot";
 import CaseDocuments from "./CaseDocuments";
 import CaseMessages from "./CaseMessages";
@@ -47,289 +46,14 @@ import { trackEvent } from "../utils/analytics";
 import DelegationModalV2 from "./DelegationModalV2";
 import { alertTramia } from "./TramiaDialog";
 
-function getPaymentInfo(
-  stepTitle: string,
-  stepDesc: string,
-  procedureId: string,
-) {
-  const text = (stepTitle + " " + stepDesc).toLowerCase();
-  if (
-    text.includes("pagalo") ||
-    text.includes("págalo") ||
-    text.includes("tasa") ||
-    text.includes("banco de la nación") ||
-    text.includes("arancel")
-  ) {
-    return {
-      url: "https://pagalo.pe",
-      label: "Pagar en Pagalo.pe (Oficial)",
-      site: "pagalo.pe",
-    };
-  }
-  if (text.includes("sat") || text.includes("multa")) {
-    return {
-      url: "https://www.sat.gob.pe",
-      label: "Ir a SAT Virtual",
-      site: "sat.gob.pe",
-    };
-  }
-  if (
-    text.includes("sunarp") ||
-    text.includes("reserva") ||
-    text.includes("propiedad")
-  ) {
-    return {
-      url: "https://www.sunarp.gob.pe",
-      label: "Ir a SUNARP en Línea",
-      site: "sunarp.gob.pe",
-    };
-  }
-  if (text.includes("sunat") || text.includes("ruc")) {
-    return {
-      url: "https://www.sunat.gob.pe",
-      label: "Ir a SUNAT Virtual",
-      site: "sunat.gob.pe",
-    };
-  }
-  if (procedureId === "soat") {
-    return {
-      url: "https://www.interseguro.pe/soat",
-      label: "Adquirir SOAT en Línea",
-      site: "interseguro.pe",
-    };
-  }
-  if (
-    text.includes("pago") ||
-    text.includes("pagar") ||
-    text.includes("comprar") ||
-    text.includes("adquirir")
-  ) {
-    return {
-      url: "https://pagalo.pe",
-      label: "Ir a Portal de Pago Seguro",
-      site: "Plataforma del Estado",
-    };
-  }
-  return null;
-}
-
-function getStepOfficialUrl(
-  stepId: string,
-  procedureId: string,
-  defaultUrl: string,
-) {
-  const sId = stepId.toLowerCase();
-  const pId = procedureId.toLowerCase();
-
-  // Renovación DNI (RENIEC)
-  if (pId === "renovar-dni") {
-    if (
-      sId.includes("pago") ||
-      sId.includes("tasa") ||
-      sId.includes("pagar") ||
-      sId.includes("step-1")
-    ) {
-      return "https://www.pagalo.pe/rates/02119";
-    }
-    if (
-      sId.includes("foto") ||
-      sId.includes("biom") ||
-      sId.includes("step-2")
-    ) {
-      return "https://www.gob.pe/12061-tomar-fotografia-para-el-dni-mediante-la-aplicacion-dni-biofacial";
-    }
-    if (
-      sId.includes("present") ||
-      sId.includes("online") ||
-      sId.includes("step-3")
-    ) {
-      return "https://apps.reniec.gob.pe/renovacionDni/";
-    }
-    if (
-      sId.includes("entreg") ||
-      sId.includes("recog") ||
-      sId.includes("step-4")
-    ) {
-      return "https://serviciosportal.reniec.gob.pe/cetdnipi/inicio.htm";
-    }
-  }
-
-  // Pasaporte Biométrico
-  if (pId === "sacar-pasaporte") {
-    if (
-      sId.includes("pago") ||
-      sId.includes("tasa") ||
-      sId.includes("01810") ||
-      sId.includes("pass-1")
-    ) {
-      return "https://www.pagalo.pe/rates/01810";
-    }
-    if (
-      sId.includes("cita") ||
-      sId.includes("reserv") ||
-      sId.includes("pass-2")
-    ) {
-      return "https://sel.migraciones.gob.pe/web-citas/";
-    }
-    if (
-      sId.includes("biometr") ||
-      sId.includes("captur") ||
-      sId.includes("pass-3")
-    ) {
-      return "https://www.gob.pe/112-obtener-pasaporte-electronico-ordinario#pasos-del-tramite";
-    }
-    if (
-      sId.includes("emision") ||
-      sId.includes("entreg") ||
-      sId.includes("pass-4")
-    ) {
-      return "https://www.gob.pe/112-obtener-pasaporte-electronico-ordinario";
-    }
-  }
-
-  // Licencia de Conducir (MTC)
-  if (pId === "licencia-conducir") {
-    if (
-      sId.includes("medico") ||
-      sId.includes("psico") ||
-      sId.includes("step-lc-1")
-    ) {
-      return "https://rec.mtc.gob.pe/LicenciaConducir/ArctSgCentroMedicoAutorizado";
-    }
-    if (
-      sId.includes("reglas") ||
-      sId.includes("conocimiento") ||
-      sId.includes("step-lc-2")
-    ) {
-      return "https://licencias.mtc.gob.pe/";
-    }
-    if (
-      sId.includes("manejo") ||
-      sId.includes("practic") ||
-      sId.includes("step-lc-3")
-    ) {
-      return "https://touring.pe/inscripciones/";
-    }
-    if (
-      sId.includes("emision") ||
-      sId.includes("tramit") ||
-      sId.includes("step-lc-4")
-    ) {
-      return "https://licencias-tramite.mtc.gob.pe/";
-    }
-  }
-
-  // RUC SUNAT
-  if (pId === "ruc-sunat") {
-    if (
-      sId.includes("solicitud") ||
-      sId.includes("inscrib") ||
-      sId.includes("step-ruc-1")
-    ) {
-      return "https://www.gob.pe/654-inscribirse-en-el-ruc";
-    }
-    if (
-      sId.includes("sol") ||
-      sId.includes("clave") ||
-      sId.includes("step-ruc-2")
-    ) {
-      return "https://www.gob.pe/671-obtener-clave-sol";
-    }
-    if (
-      sId.includes("activ") ||
-      sId.includes("tribut") ||
-      sId.includes("step-ruc-3")
-    ) {
-      return "https://www.sunat.gob.pe/operacioneslineas.html";
-    }
-  }
-
-  // SUNARP
-  if (
-    pId === "reserva-nombre" ||
-    pId === "copia-literal" ||
-    pId === "inscripcion-casa"
-  ) {
-    return "https://www.sunarp.gob.pe/sprl/inicio";
-  }
-
-  // SAT & Alcabala
-  if (pId === "multas-sat" || pId === "pago-alcabala") {
-    return "https://www.sat.gob.pe/WebSiteV9/Inicio/Papeletas";
-  }
-
-  // Fallback defaults
-  if (
-    sId.includes("pago") ||
-    sId.includes("tasa") ||
-    sId.includes("pagar") ||
-    sId.includes("abono")
-  ) {
-    return "https://www.pagalo.pe";
-  }
-  return defaultUrl;
-}
-
-function getOfficialSource(procedureId: string) {
-  switch (procedureId) {
-    case "sacar-pasaporte":
-      return {
-        url: "https://www.gob.pe/pasaporte",
-        siteName: "Superintendencia Nacional de Migraciones",
-        description:
-          "La información de este trámite está basada en la Plataforma Única del Estado Peruano y los portales oficiales de Migraciones.",
-      };
-    case "licencia-conducir":
-      return {
-        url: "https://licencias.mtc.gob.pe/",
-        siteName: "Ministerio de Transportes y Comunicaciones (MTC)",
-        description:
-          "La información de este trámite está basada en el Portal Oficial del MTC.",
-      };
-    case "ruc-sunat":
-      return {
-        url: "https://www.sunat.gob.pe",
-        siteName:
-          "Superintendencia Nacional de Aduanas y de Administración Tributaria (SUNAT)",
-        description:
-          "La información de este trámite está basada en los portales oficiales de SUNAT.",
-      };
-    case "reserva-nombre":
-    case "copia-literal":
-    case "inscripcion-casa":
-      return {
-        url: "https://www.gob.pe/sunarp",
-        siteName:
-          "Superintendencia Nacional de los Registros Públicos (SUNARP)",
-        description:
-          "La información de este trámite está basada en el Portal Institucional de la SUNARP.",
-      };
-    case "multas-sat":
-    case "pago-alcabala":
-      return {
-        url: "https://www.sat.gob.pe",
-        siteName: "Servicio de Administración Tributaria de Lima (SAT)",
-        description:
-          "La información de este trámite está basada en el Portal del SAT de Lima.",
-      };
-    case "soat":
-      return {
-        url: "https://www.apeseg.org.pe",
-        siteName: "Asociación Peruana de Empresas de Seguros (APESEG)",
-        description:
-          "La información de este trámite está basada en el registro oficial de la APESEG.",
-      };
-    case "renovar-dni":
-    case "acta-nacimiento":
-    case "dni-menor":
-    default:
-      return {
-        url: "https://www.gob.pe/reniec",
-        siteName: "Registro Nacional de Identificación y Estado Civil (RENIEC)",
-        description:
-          "La información de este trámite está basada en los portales oficiales del Estado Peruano.",
-      };
-  }
+function getOfficialSource(procedure: Procedure) {
+  return {
+    url: procedure.officialUrl || "",
+    siteName: procedure.entity || "Entidad responsable",
+    description: procedure.entity
+      ? `Consulta las condiciones vigentes directamente en el portal oficial de ${procedure.entity}.`
+      : "Consulta las condiciones vigentes directamente en la fuente oficial del trámite.",
+  };
 }
 
 function formatEntityName(siteName: string) {
@@ -436,6 +160,7 @@ function isStepEvidenceRequired(
 }
 
 interface WorkspaceViewProps {
+  key?: string;
   procedure: Procedure;
   onBack: () => void;
   onAddActiveProcedure: (
@@ -466,16 +191,13 @@ export default function WorkspaceView({
   initialIsPaid = false,
   onDeleteProcedure,
 }: WorkspaceViewProps) {
-  const officialSource = getOfficialSource(procedure.id);
-  const isPrivate = ["soat", "escritura-casa", "permiso-menores"].includes(
-    procedure.id,
-  );
-  const isMixed = ["crear-empresa", "constituir-eirl"].includes(procedure.id);
-  const procedureType = isPrivate
-    ? "Privado"
-    : isMixed
-      ? "Estatal / Privado"
-      : "Estatal";
+  const officialSource = getOfficialSource(procedure);
+  const procedureType = ({
+    government: "Estatal",
+    private: "Privado",
+    mixed: "Estatal / Privado",
+    consular: "Consular",
+  } as Record<string, string>)[procedure.procedureType || "government"] || "Estatal";
 
   // Navigation: Autogestionar vs Delegar
   // Una solicitud híbrida aún no es una delegación activa. Solo cambiamos a
@@ -484,20 +206,25 @@ export default function WorkspaceView({
   const [isDelegationModalOpen, setIsDelegationModalOpen] = useState(initialDelegationOpen);
   const [delegationIntent, setDelegationIntent] = useState(initialDelegationOpen || (initialIsDelegated && !initialIsPaid));
   const [isBotChatOpen, setIsBotChatOpen] = useState(false);
-  const [caseId, setCaseId] = useState<string>("");
+  const initialCaseId = String(procedure.userProcedureId || "");
+  const [caseId, setCaseId] = useState<string>(initialCaseId);
   const [delegationPrerequisiteStepIds, setDelegationPrerequisiteStepIds] = useState<string[] | null>(null);
   const [actionStep, setActionStep] = useState<Step | null>(null);
   const [actionData, setActionData] = useState<Record<string, string>>({});
   const [inlineStepData, setInlineStepData] = useState<Record<string, Record<string, string>>>({});
   const today = () => new Date().toISOString().slice(0, 10);
   useEffect(() => {
+    if (initialCaseId) {
+      setCaseId(initialCaseId);
+      return;
+    }
     fetch(`/api/v1/my-procedures/by-procedure/${procedure.databaseId || procedure.id}/workspace`, {
       credentials: "include",
     })
       .then((r) => r.json())
       .then((p) => setCaseId(p.instance?.id || ""))
       .catch(() => {});
-  }, [procedure.databaseId, procedure.id]);
+  }, [initialCaseId, procedure.databaseId, procedure.id]);
   useEffect(() => {
     if (!delegationIntent || !caseId) {
       setDelegationPrerequisiteStepIds(null);
@@ -609,7 +336,7 @@ export default function WorkspaceView({
 
   useEffect(() => {
     if (!caseId) return;
-    fetch(`/api/v1/my-procedures/by-procedure/${procedure.databaseId || procedure.id}/workspace`, { credentials: "include" })
+    fetch(`/api/v1/my-procedures/${caseId}/workspace`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) throw new Error("workspace_unavailable");
         return response.json();
@@ -625,7 +352,7 @@ export default function WorkspaceView({
         }));
       })
       .catch(() => {});
-  }, [caseId, procedure.databaseId, procedure.id]);
+  }, [caseId]);
 
   // Active expanded step state (accordion functionality)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(() => {
@@ -789,7 +516,6 @@ export default function WorkspaceView({
   };
 
   // Delegation states (Flow B)
-  const fallbackAdvisor = GESTORES_VERIFICADOS[0];
   const [delegationSnapshot, setDelegationSnapshot] = useState<any>(null);
   const [isPaid, setIsPaid] = useState<boolean>(initialIsPaid);
   const [isPaying, setIsPaying] = useState<boolean>(false);
@@ -802,10 +528,9 @@ export default function WorkspaceView({
   }, [caseId, isDelegated]);
   const assignedAdvisorRecord = delegationSnapshot?.advisors?.find((item: any) => item.userId === delegationSnapshot?.delegation?.requestedAdvisorId);
   const advisor = {
-    ...fallbackAdvisor,
-    name: assignedAdvisorRecord?.publicName || fallbackAdvisor.name,
-    avatar: assignedAdvisorRecord?.avatarUrl || fallbackAdvisor.avatar,
-    colegiatura: assignedAdvisorRecord?.idVerified ? "Identidad verificada" : fallbackAdvisor.colegiatura,
+    name: assignedAdvisorRecord?.publicName || "Asesor por asignar",
+    avatar: assignedAdvisorRecord?.avatarUrl || "/assets/mascot/tramia-bot-contact.png",
+    colegiatura: assignedAdvisorRecord?.idVerified ? "Identidad verificada" : "Asignación pendiente",
   };
 
   const allDocumentsApproved = useMemo(() => {
@@ -968,7 +693,7 @@ export default function WorkspaceView({
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[.14em] ${isDelegated ? "bg-violet-100 text-violet-800" : "bg-blue-100 text-blue-800"}`}>
                 {isDelegated ? <ShieldCheck size={14}/> : <Sparkles size={14}/>}
-                {isDelegated ? "Gestión con asesor" : "Ruta autogestionada"}
+                {isDelegated ? "Gestión con asesor" : delegationIntent ? "Preparación para delegar" : "Ruta autogestionada"}
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black text-slate-600">
                 <Globe size={13} className="text-blue-600"/> {procedureType}
@@ -1711,7 +1436,7 @@ export default function WorkspaceView({
                 onClick={() => {
                   setShowDeleteConfirmModal(false);
                   if (onDeleteProcedure) {
-                    onDeleteProcedure(procedure.id, hasStartedProcedure ? "cancel" : "delete");
+                    onDeleteProcedure(caseId, hasStartedProcedure ? "cancel" : "delete");
                   }
                 }}
                 className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
@@ -1911,25 +1636,19 @@ function InlineStepChecklist({
 
   if (isSimpleStep) {
     return <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Confirmación de etapa</p><p className="mt-0.5 text-[11px] text-slate-500">Registra la fecha y confirma que terminaste.</p></div>
-        <button type="button" onClick={(event) => { event.stopPropagation(); onOpenModal(); }} className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 text-[10px] font-black text-blue-700 transition hover:bg-blue-50"><MousePointerClick size={14}/>Abrir formulario</button>
-      </div>
+      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Confirmación rápida</p><p className="mt-0.5 text-[11px] text-slate-500">Selecciona la fecha en que terminaste este paso.</p></div>
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/35">
-        <div className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(210px,.7fr)] sm:items-center sm:p-4">
+        <div className="p-3 sm:p-4">
           <label className="flex min-w-0 items-center gap-3">
             {stateIcon(Boolean(value.date))}
             <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-1.5 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
           </label>
-          <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition ${confirmed ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-            <input type="checkbox" checked={confirmed} onChange={(event) => update("confirmed", event.target.checked ? "true" : "")} className="mt-0.5 size-4 shrink-0 accent-blue-600"/>
-            <span><strong className="block text-xs text-slate-900">Confirmo que terminé</strong><span className="mt-0.5 block text-[10px] leading-4 text-slate-600">Al guardar, el paso quedará cerrado.</span></span>
-          </label>
         </div>
       </div>
 
-      <button type="button" disabled={!requiredReady || !confirmed} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={16}/>{requiredReady ? confirmed ? "Guardar y completar paso" : "Confirma que terminaste la etapa" : "Selecciona la fecha de realización"}</button>
+      <button type="button" disabled={!requiredReady} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={16}/>{requiredReady ? "Confirmar etapa" : "Selecciona la fecha de realización"}</button>
+      <p className="text-center text-[10px] leading-4 text-slate-500">Al confirmar, este paso quedará cerrado y ya no se podrá modificar.</p>
     </div>;
   }
 

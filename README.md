@@ -112,6 +112,8 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
+La versión 0.8.1 valida de extremo a extremo la visa B1/B2 en autogestión y delegación. Cada inicio crea una instancia independiente, la modalidad elegida persiste al reabrirla y la preparación delegada utiliza únicamente sus requisitos personales configurados. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
+
 ### Requisitos
 
 - Node.js 22 recomendado

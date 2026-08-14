@@ -474,7 +474,7 @@ export default function PanelView({
                   <div className="absolute -left-3.5 top-1 w-1.5 h-1.5 rounded-full bg-indigo-500 border border-white" />
                   <div className="space-y-0.5 pl-2">
                     <p className="font-bold text-slate-800 text-[11px]">Asesor asignado formalmente</p>
-                    <p className="text-[10px] text-gray-400">Rodrigo Peralta tomó el trámite de Pasaporte hace 2 días</p>
+                    <p className="text-[10px] text-gray-400">Revisa las novedades y próximas acciones de tus trámites activos.</p>
                   </div>
                 </div>
 

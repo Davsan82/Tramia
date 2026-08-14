@@ -5,6 +5,7 @@ type ApiListItem = {
   slug: string;
   title: string;
   shortDescription: string;
+  procedureType?: string;
   categoryName: string;
   organizationShortName?: string;
   organizationName?: string;
@@ -129,6 +130,7 @@ function mapDetail(item: ApiDetail): Procedure {
     estimatedDuration: duration(item),
     entity: item.organizationShortName || item.organizationName || item.organization,
     officialUrl: item.officialUrl,
+    procedureType: item.procedureType,
     modality: modalityLabel[item.modality],
     requirements,
     steps,

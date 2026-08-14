@@ -7,6 +7,33 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-14
+
+### Corregido
+
+- Cada nueva solicitud de visa crea una instancia independiente, incluso cuando el mismo usuario inicia varias solicitudes del mismo trámite.
+- La modalidad de delegación se guarda desde el inicio y se restaura correctamente al volver desde Mis trámites.
+- El checklist delegado muestra únicamente los cuatro requisitos personales configurados antes de elegir asesor y confirmar el pago.
+- La navegación principal abandona correctamente el espacio de trabajo al elegir Inicio, Mis trámites o Mi perfil.
+- El registro de cuenta ya no queda bloqueado por la latencia del servidor SMTP.
+- La visa B1/B2 se identifica como trámite consular y conserva su entidad y fuente oficial desde Neon.
+
+### Mejorado
+
+- Fuentes y metadatos del trámite consumidos desde el catálogo, sin reglas por `slug` en el frontend.
+- Asesores obtenidos exclusivamente desde la API, sin nombres o perfiles heredados como respaldo en componentes operativos.
+- Contenido del flujo de pago alineado con los medios guardados y la interfaz vigente de TramIA.
+
+### Eliminado
+
+- Modal antiguo de delegación que permanecía como código muerto con contenido de demostración.
+
+### Verificado
+
+- Recorrido de visa B1/B2 en autogestión y delegación, reanudación, aislamiento por instancia y bloqueo secuencial.
+- Enlaces oficiales del Departamento de Estado, CEAC, tarifas y tiempos de espera.
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción.
+
 ## [0.8.0] - 2026-08-14
 
 ### Agregado
@@ -275,7 +302,11 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Davsan82/Tramia/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/Davsan82/Tramia/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Davsan82/Tramia/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/Davsan82/Tramia/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Davsan82/Tramia/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Davsan82/Tramia/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Davsan82/Tramia/compare/v0.5.0...v0.5.1

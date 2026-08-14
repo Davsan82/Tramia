@@ -80,7 +80,7 @@ export default function InProgressView({
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-1.5 bg-blue-900 text-cyan-400 text-[10px] font-bold px-2.5 py-1 rounded-lg">
                         <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
-                        {proc.isPaid ? 'Asignado (Rodrigo)' : 'Delegado (Pendiente de pago)'}
+                        {proc.isPaid ? 'Asesor asignado' : 'Delegación pendiente de pago'}
                       </div>
                       {!proc.isPaid && (
                         <button

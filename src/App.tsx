@@ -204,13 +204,19 @@ export default function App() {
 
   // Actually finalize starting the procedure once the choice (Hazlo tú mismo or Delegar) has been selected
   const handleFinalizeProcedureStart = async (proc: Procedure, isDelegated: boolean) => {
+    let createdCaseId = '';
     try {
       const response = await fetch('/api/v1/my-procedures', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ procedureId: proc.databaseId || proc.id }),
+        body: JSON.stringify({
+          procedureId: proc.databaseId || proc.id,
+          mode: isDelegated ? 'hybrid' : 'self_service',
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'No pudimos iniciar este trámite.');
+      createdCaseId = String(payload.data?.id || '');
+      if (!createdCaseId) throw new Error('No recibimos el identificador de la nueva gestión.');
       // La solicitud de delegación se crea recién después de completar los
       // prerrequisitos personales y elegir un asesor en Mis trámites.
     } catch (error) {
@@ -235,45 +241,27 @@ export default function App() {
       });
     }
 
-    const activeCopy = activeProcedures.find(ap => ap.procedureId === proc.id);
-
-    if (activeCopy) {
-      // Continuing existing active procedure: restore saved requirements, completedStepIds, and current step
-      setSelectedProcedure({
-        ...proc,
-        requirements: activeCopy.requirements,
-        completedStepIds: activeCopy.completedStepIds || [],
-        currentStepId: activeCopy.currentStepId
-      } as any);
-    } else {
-      // Starting a brand new procedure: start 100% clean with 0% progress and pending requirements
-      const cleanRequirements: Requirement[] = proc.requirements.map(r => ({
-        ...r,
-        status: 'Pendiente',
-        uploadedFileName: undefined,
-        feedbackMessage: undefined,
-        imageQuality: undefined,
-        detectedErrors: undefined,
-        recommendations: undefined,
-        isValidated: false
-      }));
-
-      const cleanSteps = proc.steps.map(s => ({
-        ...s,
-        status: 'PENDIENTE' as const
-      }));
-
-      setSelectedProcedure({
-        ...proc,
-        steps: cleanSteps,
-        requirements: cleanRequirements,
-        completedStepIds: [],
-        currentStepId: cleanSteps[0]?.id || 'step-1'
-      } as any);
-
-      // Remove any stale copy
-      setActiveProcedures(prev => prev.filter(ap => ap.procedureId !== proc.id));
-    }
+    // Cada inicio crea una gestión independiente, aunque exista otra activa
+    // del mismo trámite del catálogo.
+    const cleanRequirements: Requirement[] = proc.requirements.map(r => ({
+      ...r,
+      status: 'Pendiente',
+      uploadedFileName: undefined,
+      feedbackMessage: undefined,
+      imageQuality: undefined,
+      detectedErrors: undefined,
+      recommendations: undefined,
+      isValidated: false
+    }));
+    const cleanSteps = proc.steps.map(s => ({ ...s, status: 'PENDIENTE' as const }));
+    setSelectedProcedure({
+      ...proc,
+      userProcedureId: createdCaseId,
+      steps: cleanSteps,
+      requirements: cleanRequirements,
+      completedStepIds: [],
+      currentStepId: cleanSteps[0]?.id || 'step-1'
+    } as any);
 
     setIsMethodSelectionModalOpen(false);
     setPendingProcedureToStart(null);
@@ -293,8 +281,10 @@ export default function App() {
     completedStepIdsParam?: string[]
   ) => {
     const addAction = () => {
-      // Check if copy already exists in current list
-      const existsIdx = activeProcedures.findIndex(ap => ap.procedureId === proc.id);
+      const userProcedureId = String(proc.userProcedureId || '');
+      // El estado transitorio también se identifica por la instancia, no por
+      // el tipo de trámite del catálogo.
+      const existsIdx = activeProcedures.findIndex(ap => ap.id === userProcedureId);
       
       const stepId = currentStepId || (existsIdx > -1 ? activeProcedures[existsIdx].currentStepId : (proc.steps[0]?.id || 'step-1'));
 
@@ -325,12 +315,12 @@ export default function App() {
           
           if (idx < completedStepsCount) {
             status = 'completado';
-            time = isDelegated ? "Validado por Rodrigo" : "Validado por usuario";
+            time = isDelegated ? "Validado con el asesor asignado" : "Validado por el usuario";
           } else if (idx === completedStepsCount) {
             status = 'actual';
             time = (idx === totalSteps - 1) 
               ? "Pendiente de recoger documento" 
-              : (isDelegated ? "En gestión por Rodrigo" : "En curso");
+              : (isDelegated ? "En gestión con el asesor asignado" : "En curso");
           } else {
             status = 'pendiente';
           }
@@ -351,20 +341,20 @@ export default function App() {
         });
       } else {
         dynamicTimeline = isDelegated ? [
-          { title: "Pago de Tasa Especial", status: "completado" as const, time: "Hoy, validado" },
-          { title: "Asignación Premium de Asesor Rodrigo", status: "completado" as const, time: "Hace unos minutos" },
-          { title: "Rodrigo consolidando expedientes notariales", status: "actual" as const, time: "En revisión final" },
-          { title: "Recoger el documento en la oficina", status: "pendiente" as const, time: "Pendiente de recojo" }
+          { title: "Preparación de requisitos personales", status: "completado" as const, time: "Validado" },
+          { title: "Asignación del asesor seleccionado", status: "completado" as const, time: "Confirmada" },
+          { title: "Gestión del expediente", status: "actual" as const, time: "En curso" },
+          { title: "Entrega del resultado", status: "pendiente" as const, time: "Pendiente" }
         ] : [
-          { title: "Arranque inicial de trámite", status: "completado" as const, time: "Hoy" },
-          { title: "Carga de documentos revisados por TramIA", status: "actual" as const, time: "En curso" },
-          { title: "Recoger el documento en la oficina", status: "pendiente" as const, time: "Pendiente de recojo" }
+          { title: "Preparación del trámite", status: "completado" as const, time: "Iniciada" },
+          { title: "Revisión de requisitos", status: "actual" as const, time: "En curso" },
+          { title: "Entrega del resultado", status: "pendiente" as const, time: "Pendiente" }
         ];
       }
 
       // Generate new active template
       const newActive: ActiveProcedure = {
-        id: `active-${Date.now()}`,
+        id: userProcedureId || `active-${Date.now()}`,
         procedureId: proc.id,
         title: proc.title,
         category: proc.category,
@@ -394,10 +384,10 @@ export default function App() {
         };
         setActiveProcedures(copy);
       } else {
-        setActiveProcedures([newActive, ...activeProcedures]);
+        setActiveProcedures(prev => [newActive, ...prev]);
       }
 
-      if (!isQuiet) void fetch(`/api/v1/my-procedures/by-procedure/${proc.databaseId || proc.id}/progress`, {
+      if (!isQuiet && userProcedureId) void fetch(`/api/v1/my-procedures/${userProcedureId}/progress`, {
         method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progressPercentage: pctToUse, currentStepId: stepId, completedStepIds: completedStepIdsParam || [] }),
       }).then(async response => {
@@ -411,7 +401,7 @@ export default function App() {
         setToastMessage({
           title: isDelegated ? "¡Trámite Delegado!" : "Trámite registrado",
           desc: isDelegated 
-            ? "El asesor Rodrigo ha tomado tu caso e inició los aranceles del 80%." 
+            ? "Tu asesor fue asignado y la gestión acompañada ya está en curso."
             : "Se registró exitosamente en tu panel de 'En proceso'.",
           type: "success"
         });
@@ -431,15 +421,18 @@ export default function App() {
   };
 
   // Find procedure details by ID to allow easy checklist jump
-  const handleSelectProcedureById = async (procedureId: string) => {
+  const handleSelectProcedureById = async (procedureId: string, userProcedureId?: string) => {
     const found = procedures.find(p => p.id === procedureId || p.databaseId === procedureId);
     if (found) {
       // Find custom requirements from active states if any
-      const activeCopy = activeProcedures.find(ap => ap.procedureId === procedureId || ap.procedureId === found.databaseId || ap.procedureId === found.id);
+      const activeCopy = userProcedureId
+        ? activeProcedures.find(ap => ap.id === userProcedureId)
+        : activeProcedures.find(ap => ap.procedureId === procedureId || ap.procedureId === found.databaseId || ap.procedureId === found.id);
       if (activeCopy) {
         setIsDelegatedSelected(activeCopy.isDelegated);
         setSelectedProcedure({
           ...found,
+          userProcedureId: userProcedureId || activeCopy.id,
           currentStepId: activeCopy.currentStepId,
           requirements: activeCopy.requirements,
           completedStepIds: activeCopy.completedStepIds || []
@@ -448,7 +441,10 @@ export default function App() {
         let persistedWorkspace: any = null;
         if (userProfile) {
           try {
-            const response = await fetch(`/api/v1/my-procedures/by-procedure/${found.databaseId || procedureId}/workspace`, { credentials: 'include' });
+            const workspaceUrl = userProcedureId
+              ? `/api/v1/my-procedures/${userProcedureId}/workspace`
+              : `/api/v1/my-procedures/by-procedure/${found.databaseId || procedureId}/workspace`;
+            const response = await fetch(workspaceUrl, { credentials: 'include' });
             if (response.ok) persistedWorkspace = await response.json();
           } catch (error) {
             console.warn('[procedure-workspace]', error);
@@ -474,14 +470,15 @@ export default function App() {
           status: completedStepIds.includes(s.id) ? 'COMPLETADO' as const : 'PENDIENTE' as const
         }));
 
+        setIsDelegatedSelected(Boolean(persistedWorkspace?.instance?.mode && persistedWorkspace.instance.mode !== 'self_service'));
         setSelectedProcedure({
           ...found,
+          userProcedureId: persistedWorkspace?.instance?.id || userProcedureId,
           steps: cleanSteps,
           requirements: cleanRequirements,
           completedStepIds,
           currentStepId: persistedWorkspace?.instance?.currentStepId || cleanSteps[0]?.id || 'step-1'
         } as any);
-        setIsDelegatedSelected(Boolean(persistedWorkspace?.instance?.mode && persistedWorkspace.instance.mode !== 'self_service'));
       }
       setCurrentTab('proceso');
       setInicioSubView('workspace');
@@ -493,18 +490,18 @@ export default function App() {
     }
   };
 
-  const handleDeleteActiveProcedure = async (procedureId: string, requestedAction: 'delete' | 'cancel') => {
-    const target = activeProcedures.find(ap => ap.procedureId === procedureId);
+  const handleDeleteActiveProcedure = async (userProcedureId: string, requestedAction: 'delete' | 'cancel') => {
+    const target = activeProcedures.find(ap => ap.id === userProcedureId);
     if (target) {
       trackEvent(requestedAction === 'delete' ? 'tramite_eliminado' : 'tramite_cancelado', {
-        procedure_id: procedureId,
+        procedure_id: target.procedureId,
         procedure_title: target.title,
         procedure_mode: target.isDelegated ? 'delegated' : 'self_service',
       });
     }
 
     try {
-      const remove = (action: 'delete' | 'cancel', acknowledgeNoRefund = false) => fetch(`/api/v1/my-procedures/by-procedure/${procedureId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason: action === 'cancel' ? 'Cancelado por el usuario desde su espacio de trabajo.' : 'Eliminado por el usuario antes de registrar avances.', acknowledgeNoRefund }) });
+      const remove = (action: 'delete' | 'cancel', acknowledgeNoRefund = false) => fetch(`/api/v1/my-procedures/${userProcedureId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason: action === 'cancel' ? 'Cancelado por el usuario desde su espacio de trabajo.' : 'Eliminado por el usuario antes de registrar avances.', acknowledgeNoRefund }) });
       let response = await remove(requestedAction, requestedAction === 'cancel');
       let payload = await response.json().catch(() => ({}));
       if (response.status === 409 && payload.error === 'cancellation_acknowledgement_required') {
@@ -519,7 +516,7 @@ export default function App() {
       setToastMessage({ title: 'No pudimos actualizar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
       return;
     }
-    setActiveProcedures(prev => prev.filter(ap => ap.procedureId !== procedureId));
+    setActiveProcedures(prev => prev.filter(ap => ap.id !== userProcedureId));
     setServerActiveProcedureCount(value => Math.max(0, value - 1));
     setSelectedProcedure(null);
     setInicioSubView('home');
@@ -715,6 +712,7 @@ export default function App() {
           ) : (
             selectedProcedure && inicioSubView === 'workspace' ? (
               <WorkspaceView
+                key={String(selectedProcedure.userProcedureId || selectedProcedure.id)}
                 procedure={selectedProcedure}
                 onBack={() => {
                   setSelectedProcedure(null);
@@ -726,7 +724,7 @@ export default function App() {
                 initialIsDelegated={isDelegatedSelected}
                 initialDelegationOpen={openDelegationAfterStart}
                 onDelegationOpened={() => setOpenDelegationAfterStart(false)}
-                initialIsPaid={activeProcedures.find(ap => ap.procedureId === selectedProcedure.id)?.isPaid}
+                initialIsPaid={activeProcedures.find(ap => ap.id === String(selectedProcedure.userProcedureId || ''))?.isPaid}
                 onDeleteProcedure={handleDeleteActiveProcedure}
               />
             ) : (
@@ -831,6 +829,8 @@ export default function App() {
           isHomeView={isHomeView}
           currentTab={currentTab}
           setCurrentTab={(tab) => {
+            setSelectedProcedure(null);
+            setOpenDelegationAfterStart(false);
             setCurrentTab(tab);
             if (tab === 'inicio') window.history.replaceState({}, '', '/');
           }}

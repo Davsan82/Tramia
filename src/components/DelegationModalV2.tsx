@@ -145,7 +145,7 @@ export default function DelegationModalV2({
           <div className="relative">
             <p className="text-xs font-black uppercase tracking-[.18em] text-cyan-200">Gestión acompañada</p>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">Delegar a TramIA</h2>
-            <p className="mt-2 max-w-xl text-sm text-blue-100">Completa tus acciones personales, elige un especialista y confirma un pago de prueba.</p>
+            <p className="mt-2 max-w-xl text-sm text-blue-100">Completa tus acciones personales, elige un especialista y confirma el servicio con una tarjeta guardada.</p>
           </div>
         </header>
 
@@ -209,7 +209,7 @@ export default function DelegationModalV2({
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">Paso final antes de delegar</p>
                   <h3 className="mt-1 text-xl font-black text-slate-950">Revisa el servicio y elige cómo pagar</h3>
-                  <p className="mt-1 text-sm text-slate-500">El asesor empezará a gestionar tu trámite cuando se confirme esta operación de prueba.</p>
+                  <p className="mt-1 text-sm text-slate-500">El asesor empezará a gestionar tu trámite cuando se confirme el pago.</p>
                 </div>
 
                 {selectedAdvisor && <div className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-blue-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -238,7 +238,7 @@ export default function DelegationModalV2({
                   ))}
                 </div>
                 {!cards.length && <p className="mt-3 rounded-xl bg-amber-50 p-4 text-sm">Primero agrega una tarjeta en Mi perfil.</p>}
-                <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800"><strong>Operación protegida.</strong> Este módulo se encuentra en entorno de prueba y no procesa dinero real.</p>
+                <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800"><strong>Operación protegida.</strong> TramIA no almacena el número completo de la tarjeta ni su código de seguridad.</p>
                 <button disabled={!cardId || saving} onClick={() => void confirmPayment()} className="min-h-13 w-full rounded-2xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-40"><span className="inline-flex items-center gap-2"><LockKeyhole size={17}/>Pagar S/ {(data.delegation.quotedAmountMinor / 100).toFixed(2)} y comenzar delegación</span></button>
               </section>
             )}
