@@ -20,6 +20,7 @@ import ProfileView from './components/ProfileView';
 import LoginView from './components/LoginView';
 import DocumentValidationView from './components/DocumentValidationView';
 import { trackEvent } from './utils/analytics';
+import { confirmTramia } from './components/TramiaDialog';
 
 import { EXPIRATION_REMINDERS } from './data';
 import { loadProcedureCatalog } from './services/catalog';
@@ -92,12 +93,13 @@ export default function App() {
 
   // Profile authenticated state manager (starts on Login / Create Profile mode)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [sessionResolved, setSessionResolved] = useState(false);
   const [serverActiveProcedureCount, setServerActiveProcedureCount] = useState(0);
   const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(15 * 60);
 
   const logout = async () => {
     await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
-    setUserProfile(null); setServerActiveProcedureCount(0); setCurrentTab('inicio'); setInicioSubView('home'); setSessionRemainingSeconds(15 * 60);
+    setUserProfile(null); setSessionResolved(true); setServerActiveProcedureCount(0); setCurrentTab('inicio'); setInicioSubView('home'); setSessionRemainingSeconds(15 * 60);
     window.history.replaceState({}, '', '/');
   };
 
@@ -107,7 +109,8 @@ export default function App() {
     fetch('/api/v1/auth/session', { credentials: 'include' })
       .then(async (response) => response.ok ? response.json() : { user: null })
       .then((result) => { if (active) setUserProfile(result.user || null); })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (active) setSessionResolved(true); });
     return () => { active = false; };
   }, []);
 
@@ -490,44 +493,40 @@ export default function App() {
     }
   };
 
-  const handleDeleteActiveProcedure = async (procedureId: string) => {
+  const handleDeleteActiveProcedure = async (procedureId: string, requestedAction: 'delete' | 'cancel') => {
     const target = activeProcedures.find(ap => ap.procedureId === procedureId);
     if (target) {
-      if (target.isDelegated) {
-        trackEvent('tramite_delegado_eliminado', {
-          procedure_id: procedureId,
-          procedure_title: target.title
-        });
-      } else {
-        trackEvent('tramite_auto_eliminado', {
-          procedure_id: procedureId,
-          procedure_title: target.title
-        });
-      }
+      trackEvent(requestedAction === 'delete' ? 'tramite_eliminado' : 'tramite_cancelado', {
+        procedure_id: procedureId,
+        procedure_title: target.title,
+        procedure_mode: target.isDelegated ? 'delegated' : 'self_service',
+      });
     }
 
     try {
-      const cancel = (acknowledgeNoRefund = false) => fetch(`/api/v1/my-procedures/by-procedure/${procedureId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Cancelado por el usuario desde su espacio de trabajo.', acknowledgeNoRefund }) });
-      let response = await cancel();
+      const remove = (action: 'delete' | 'cancel', acknowledgeNoRefund = false) => fetch(`/api/v1/my-procedures/by-procedure/${procedureId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason: action === 'cancel' ? 'Cancelado por el usuario desde su espacio de trabajo.' : 'Eliminado por el usuario antes de registrar avances.', acknowledgeNoRefund }) });
+      let response = await remove(requestedAction, requestedAction === 'cancel');
       let payload = await response.json().catch(() => ({}));
       if (response.status === 409 && payload.error === 'cancellation_acknowledgement_required') {
-        const confirmed = window.confirm(`${payload.message}\n\n¿Deseas cancelar el trámite de todas maneras?`);
+        const confirmed = await confirmTramia({title:'Este trámite ya tiene avances',message:`${payload.message} Los pagos realizados no serán reembolsados.`,variant:'danger',confirmLabel:'Cancelar trámite',cancelLabel:'Volver'});
         if (!confirmed) return;
-        response = await cancel(true);
+        response = await remove('cancel', true);
         payload = await response.json().catch(() => ({}));
       }
-      if (!response.ok) throw new Error(payload.message || 'No pudimos cancelar este trámite.');
+      if (!response.ok) throw new Error(payload.message || 'No pudimos retirar este trámite.');
+      requestedAction = payload.cancelled ? 'cancel' : 'delete';
     } catch (error) {
-      setToastMessage({ title: 'No pudimos cancelar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
+      setToastMessage({ title: 'No pudimos actualizar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
       return;
     }
     setActiveProcedures(prev => prev.filter(ap => ap.procedureId !== procedureId));
+    setServerActiveProcedureCount(value => Math.max(0, value - 1));
     setSelectedProcedure(null);
     setInicioSubView('home');
     setCurrentTab('proceso');
     setToastMessage({
-      title: 'Trámite eliminado',
-      desc: 'El trámite ha sido eliminado de tus procesos en curso.',
+      title: requestedAction === 'cancel' ? 'Trámite cancelado' : 'Trámite eliminado',
+      desc: requestedAction === 'cancel' ? 'Lo encontrarás en tu historial con el estado Cancelado.' : 'Se retiró porque todavía no tenía avances ni pagos.',
       type: 'success'
     });
   };
@@ -827,6 +826,7 @@ export default function App() {
           reminders={reminders}
           onTriggerReminder={handleTriggerReminderRenew}
           profile={userProfile}
+          sessionResolved={sessionResolved}
           onTriggerLogin={handleTriggerLogin}
           isHomeView={isHomeView}
           currentTab={currentTab}

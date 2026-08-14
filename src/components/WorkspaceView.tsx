@@ -45,6 +45,7 @@ import DocumentValidationModal, {
 } from "./DocumentValidationModal";
 import { trackEvent } from "../utils/analytics";
 import DelegationModalV2 from "./DelegationModalV2";
+import { alertTramia } from "./TramiaDialog";
 
 function getPaymentInfo(
   stepTitle: string,
@@ -452,7 +453,7 @@ interface WorkspaceViewProps {
   initialDelegationOpen?: boolean;
   onDelegationOpened?: () => void;
   initialIsPaid?: boolean;
-  onDeleteProcedure?: (procedureId: string) => void;
+  onDeleteProcedure?: (procedureId: string, action: "delete" | "cancel") => void;
 }
 
 export default function WorkspaceView({
@@ -477,13 +478,17 @@ export default function WorkspaceView({
       : "Estatal";
 
   // Navigation: Autogestionar vs Delegar
-  const [isDelegated, setIsDelegated] = useState<boolean>(initialIsDelegated);
+  // Una solicitud híbrida aún no es una delegación activa. Solo cambiamos a
+  // delegado cuando el pago fue confirmado y el asesor quedó asignado.
+  const [isDelegated, setIsDelegated] = useState<boolean>(initialIsDelegated && initialIsPaid);
   const [isDelegationModalOpen, setIsDelegationModalOpen] = useState(initialDelegationOpen);
-  const [delegationIntent, setDelegationIntent] = useState(initialDelegationOpen);
+  const [delegationIntent, setDelegationIntent] = useState(initialDelegationOpen || (initialIsDelegated && !initialIsPaid));
   const [isBotChatOpen, setIsBotChatOpen] = useState(false);
   const [caseId, setCaseId] = useState<string>("");
+  const [delegationPrerequisiteStepIds, setDelegationPrerequisiteStepIds] = useState<string[] | null>(null);
   const [actionStep, setActionStep] = useState<Step | null>(null);
   const [actionData, setActionData] = useState<Record<string, string>>({});
+  const [inlineStepData, setInlineStepData] = useState<Record<string, Record<string, string>>>({});
   const today = () => new Date().toISOString().slice(0, 10);
   useEffect(() => {
     fetch(`/api/v1/my-procedures/by-procedure/${procedure.databaseId || procedure.id}/workspace`, {
@@ -494,32 +499,48 @@ export default function WorkspaceView({
       .catch(() => {});
   }, [procedure.databaseId, procedure.id]);
   useEffect(() => {
+    if (!delegationIntent || !caseId) {
+      setDelegationPrerequisiteStepIds(null);
+      return;
+    }
+    fetch(`/api/v1/my-procedures/${caseId}/delegation-prerequisites`, { credentials: "include" })
+      .then((response) => response.json().then((payload) => ({ response, payload })))
+      .then(({ response, payload }) => {
+        if (!response.ok) throw new Error(payload.message || "No pudimos preparar la delegación.");
+        setDelegationPrerequisiteStepIds((payload.steps || []).map((step: { procedureStepId: string }) => step.procedureStepId));
+      })
+      .catch(() => setDelegationPrerequisiteStepIds([]));
+  }, [caseId, delegationIntent]);
+  useEffect(() => {
     if (initialDelegationOpen) {
       setDelegationIntent(true);
       setIsDelegationModalOpen(true);
       onDelegationOpened?.();
     }
   }, [initialDelegationOpen, onDelegationOpened]);
-  const completeAction = async () => {
-    if (!actionStep || !caseId) return;
+  const completeAction = async (stepOverride?: Step, dataOverride?: Record<string, string>) => {
+    const targetStep = stepOverride || actionStep;
+    const targetData = dataOverride || actionData;
+    if (!targetStep || !caseId) return;
     const response = await fetch(
-        `/api/v1/my-procedures/${caseId}/steps/${actionStep.id}/complete`,
+        `/api/v1/my-procedures/${caseId}/steps/${targetStep.id}/complete`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ confirmCompleted: true, data: actionData }),
+          body: JSON.stringify({ confirmCompleted: true, data: targetData }),
         },
       ),
       payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      alert(payload.message || "No pudimos completar la etapa.");
+      await alertTramia({ title: "No pudimos completar la etapa", message: payload.message || "Revisa los datos e inténtalo nuevamente.", variant: "warning" });
       return;
     }
-    setCompletedStepIds((value) => [...new Set([...value, actionStep.id])]);
-    setCompletedStepDetails((value) => ({ ...value, [actionStep.id]: { ...actionData, completedAt: new Date().toISOString() } }));
-    setRequirements((items) => items.map((item) => item.requiredForStepId === actionStep.id ? { ...item, status: "Aprobado", isValidated: true } : item));
-    const currentIndex = procedure.steps.findIndex((item) => item.id === actionStep.id);
+    setCompletedStepIds((value) => [...new Set([...value, targetStep.id])]);
+    setCompletedStepDetails((value) => ({ ...value, [targetStep.id]: { ...targetData, completedAt: new Date().toISOString() } }));
+    setRequirements((items) => items.map((item) => item.requiredForStepId === targetStep.id ? { ...item, status: "Aprobado", isValidated: true } : item));
+    setInlineStepData((value) => { const next = { ...value }; delete next[targetStep.id]; return next; });
+    const currentIndex = procedure.steps.findIndex((item) => item.id === targetStep.id);
     const nextStep = procedure.steps.slice(currentIndex + 1).find((item) => !completedStepIds.includes(item.id));
     if (nextStep) setExpandedStepId(nextStep.id);
     setActionStep(null);
@@ -536,17 +557,11 @@ export default function WorkspaceView({
     setIsValidationModalOpen(true);
   };
 
-  // Deletion modals state
+  // Removal/cancellation confirmation state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [showDeleteRestrictedModal, setShowDeleteRestrictedModal] =
-    useState(false);
 
   const handleDeleteProcedureClick = () => {
-    if (isDelegated && isPaid) {
-      setShowDeleteRestrictedModal(true);
-    } else {
-      setShowDeleteConfirmModal(true);
-    }
+    setShowDeleteConfirmModal(true);
   };
 
   // Requirements state
@@ -646,11 +661,11 @@ export default function WorkspaceView({
   const selectUploadFile = (file?: File) => {
     if (!file) return;
     if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
-      alert("Selecciona un archivo PDF, JPG o PNG.");
+      void alertTramia({ title: "Formato no compatible", message: "Selecciona un archivo PDF, JPG o PNG.", variant: "warning" });
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      alert("El archivo debe pesar como máximo 8 MB.");
+      void alertTramia({ title: "El archivo es demasiado grande", message: "Puedes adjuntar archivos de hasta 8 MB.", variant: "warning" });
       return;
     }
     if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
@@ -688,7 +703,7 @@ export default function WorkspaceView({
       setActionStep(targetStep);
       closeUploadModal();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "No pudimos guardar el documento.");
+      await alertTramia({ title: "No pudimos guardar el documento", message: error instanceof Error ? error.message : "Inténtalo nuevamente en unos momentos.", variant: "danger" });
     } finally {
       setIsScanning(false);
     }
@@ -699,7 +714,7 @@ export default function WorkspaceView({
     const target = procedure.steps.find((step) => step.id === stepId);
     if (completedStepIds.includes(stepId)) return;
     if (target) {
-      setActionData({ date: today() });
+      setActionData(inlineStepData[stepId] || { date: today() });
       setActionStep(target);
       return;
     }
@@ -774,9 +789,24 @@ export default function WorkspaceView({
   };
 
   // Delegation states (Flow B)
-  const advisor = GESTORES_VERIFICADOS[0];
+  const fallbackAdvisor = GESTORES_VERIFICADOS[0];
+  const [delegationSnapshot, setDelegationSnapshot] = useState<any>(null);
   const [isPaid, setIsPaid] = useState<boolean>(initialIsPaid);
   const [isPaying, setIsPaying] = useState<boolean>(false);
+  useEffect(() => {
+    if (!caseId || !isDelegated) return;
+    fetch(`/api/v1/my-procedures/${caseId}/delegation`, { credentials: "include" })
+      .then((response) => response.json().then((payload) => ({ response, payload })))
+      .then(({ response, payload }) => { if (response.ok) setDelegationSnapshot(payload); })
+      .catch(() => {});
+  }, [caseId, isDelegated]);
+  const assignedAdvisorRecord = delegationSnapshot?.advisors?.find((item: any) => item.userId === delegationSnapshot?.delegation?.requestedAdvisorId);
+  const advisor = {
+    ...fallbackAdvisor,
+    name: assignedAdvisorRecord?.publicName || fallbackAdvisor.name,
+    avatar: assignedAdvisorRecord?.avatarUrl || fallbackAdvisor.avatar,
+    colegiatura: assignedAdvisorRecord?.idVerified ? "Identidad verificada" : fallbackAdvisor.colegiatura,
+  };
 
   const allDocumentsApproved = useMemo(() => {
     return requirements.every((r) => r.status === "Aprobado");
@@ -791,6 +821,17 @@ export default function WorkspaceView({
     const count = completedStepIds.length;
     return Math.round((count / totalSteps) * 100);
   }, [completedStepIds, totalSteps]);
+
+  const displayedRouteSteps = useMemo(() => {
+    if (!delegationIntent || delegationPrerequisiteStepIds === null) return procedure.steps;
+    const requiredIds = new Set(delegationPrerequisiteStepIds);
+    return procedure.steps.filter((step) => requiredIds.has(step.id));
+  }, [delegationIntent, delegationPrerequisiteStepIds, procedure.steps]);
+  const displayedCompletedCount = displayedRouteSteps.filter((step) => completedStepIds.includes(step.id)).length;
+  const displayedProgress = displayedRouteSteps.length
+    ? Math.round((displayedCompletedCount / displayedRouteSteps.length) * 100)
+    : delegationIntent && delegationPrerequisiteStepIds !== null ? 100 : completionPercentageA;
+  const displayedNextStep = displayedRouteSteps.find((step) => !completedStepIds.includes(step.id));
 
   const nextPendingStep = useMemo(
     () => procedure.steps.find((step) => !completedStepIds.includes(step.id)),
@@ -885,6 +926,7 @@ export default function WorkspaceView({
 
   const isAllStepsCompleted =
     completionPercentageA === 100 && isLastStepCompleted;
+  const hasStartedProcedure = completedStepIds.length > 0 || completionPercentageA > 0 || isPaid;
 
   return (
     <div className="space-y-6 animate-fadeIn" id="workspace-view-top">
@@ -897,147 +939,74 @@ export default function WorkspaceView({
         accept="image/*,.pdf"
       />
 
-      {/* Mini Breadcrumb Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer"
-        >
-          <ArrowLeft size={16} />
-          Volver a Trámites en Proceso
-        </button>
-        <div className="flex items-center gap-4">
-          {!(isDelegated && isPaid) && (
-            <button
-              onClick={handleDeleteProcedureClick}
-              className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-white bg-white hover:bg-red-600 px-3 py-1.5 rounded-xl border border-red-200 hover:border-red-600 transition-all cursor-pointer shadow-xs"
-              title="Eliminar trámite"
-            >
-              <Trash2 size={13} />
-              Eliminar trámite
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Cabecera contextual del trámite */}
+      <section className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-[0_22px_60px_-38px_rgba(8,38,87,.55)]">
+        <div className="pointer-events-none absolute -right-24 -top-28 size-72 rounded-full bg-cyan-200/35 blur-3xl" />
+        <div className="pointer-events-none absolute left-1/3 top-0 size-48 rounded-full bg-blue-100/50 blur-3xl" />
 
-      {/* Main Title Banner & Meta Info */}
-      <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-6">
-          <div className="space-y-3 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-blue-600 font-mono tracking-wider uppercase">
-                {isDelegated ? "TRÁMITE DELEGADO" : "AUTOGESTIÓN INTERACTIVA"}
+        <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-blue-100/80 bg-blue-50/55 px-5 py-3 sm:px-7">
+          <button
+            onClick={onBack}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-bold text-slate-600 transition hover:bg-white hover:text-blue-700"
+          >
+            <ArrowLeft size={17} />
+            Volver a mis trámites
+          </button>
+          <button
+            onClick={handleDeleteProcedureClick}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-100 bg-white px-3 text-xs font-black text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white"
+            title={hasStartedProcedure ? "Cancelar trámite" : "Eliminar trámite"}
+          >
+            {hasStartedProcedure ? <X size={15}/> : <Trash2 size={15} />}
+            <span className="hidden sm:inline">{hasStartedProcedure ? "Cancelar trámite" : "Eliminar trámite"}</span>
+            <span className="sm:hidden">{hasStartedProcedure ? "Cancelar" : "Eliminar"}</span>
+          </button>
+        </div>
+
+        <div className="relative grid gap-6 px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[.14em] ${isDelegated ? "bg-violet-100 text-violet-800" : "bg-blue-100 text-blue-800"}`}>
+                {isDelegated ? <ShieldCheck size={14}/> : <Sparkles size={14}/>}
+                {isDelegated ? "Gestión con asesor" : "Ruta autogestionada"}
               </span>
-              <span
-                className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md border ${
-                  isDelegated
-                    ? "bg-purple-50 text-purple-700 border-purple-100"
-                    : "bg-blue-50 text-blue-700 border-blue-100"
-                }`}
-              >
-                {isDelegated
-                  ? "Delegación a Asesor Experto"
-                  : "Checklist Híbrido Paso a Paso"}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black text-slate-600">
+                <Globe size={13} className="text-blue-600"/> {procedureType}
+              </span>
+              <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black text-slate-600">
+                <Building size={13} className="shrink-0 text-blue-600"/>
+                <span className="truncate">{formatEntityName(officialSource.siteName)}</span>
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            <p className="mt-5 text-xs font-black uppercase tracking-[.18em] text-blue-600">Tu trámite en TramIA</p>
+            <h1 className="mt-2 max-w-4xl text-3xl font-black leading-[1.08] tracking-tight text-slate-950 sm:text-4xl">
               {procedure.title}
             </h1>
-            <p className="text-sm text-slate-600 leading-relaxed font-medium">
+            <p className="mt-4 max-w-4xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px] sm:leading-7">
               {procedure.description}
             </p>
           </div>
 
-          {/* Top-right meta badges */}
-          <div className="flex flex-row md:flex-col items-center md:items-end gap-4 md:gap-2 shrink-0 bg-slate-50/60 px-4 py-3 rounded-2xl border border-gray-100/80 min-w-full md:min-w-[190px] md:text-right">
-            <div className="flex-1 md:flex-initial">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">
-                Tipo de Trámite
-              </p>
-              <div className="mt-0.5 flex md:justify-end items-center gap-1">
-                <Globe
-                  size={12}
-                  className={
-                    procedureType === "Privado"
-                      ? "text-purple-500"
-                      : "text-blue-500"
-                  }
-                />
-                <span
-                  className={`inline-block text-[11px] font-extrabold ${
-                    procedureType === "Privado"
-                      ? "text-purple-700"
-                      : procedureType === "Estatal / Privado"
-                        ? "text-amber-700"
-                        : "text-blue-700"
-                  }`}
-                >
-                  {procedureType}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex-1 md:flex-initial border-l md:border-l-0 md:border-t border-gray-200 pl-4 md:pl-0 md:pt-2 w-full">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono">
-                Entidad
-              </p>
-              <div className="mt-0.5 flex md:justify-end items-center gap-1">
-                <Building size={12} className="text-slate-500 shrink-0" />
-                <span className="text-[11px] font-black text-slate-900 uppercase tracking-wide">
-                  {formatEntityName(officialSource.siteName)}
-                </span>
-              </div>
-            </div>
+          <div className="hidden h-44 items-end justify-center lg:flex" aria-hidden="true">
+            <img src="/assets/mascot/tramia-bot-guiding.png" alt="" className="max-h-44 w-auto object-contain drop-shadow-[0_18px_20px_rgba(15,75,160,.18)]"/>
           </div>
         </div>
 
-        {/* Core Parameters Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5 border-t border-gray-100">
-          <div className="p-4 bg-slate-50/70 rounded-2xl border border-gray-200/50 flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-              <Clock size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
-                Duración estimada
-              </p>
-              <p className="text-xs font-bold text-slate-900">
-                {procedure.estimatedDuration || procedure.duration}
-              </p>
-            </div>
+        <div className="relative grid border-t border-blue-100 bg-slate-50/75 sm:grid-cols-3">
+          <div className="flex min-w-0 items-center gap-3 border-b border-blue-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-7">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-100 text-blue-700"><Clock size={20}/></span>
+            <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Tiempo estimado</p><p className="mt-1 text-sm font-black text-slate-900">{procedure.estimatedDuration || procedure.duration}</p></div>
           </div>
-
-          <div className="p-4 bg-slate-50/70 rounded-2xl border border-gray-200/50 flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-              <DollarSign size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
-                Tasa del Estado
-              </p>
-              <p className="text-xs font-bold text-slate-900">
-                {procedure.estimatedCost}
-              </p>
-            </div>
+          <div className="flex min-w-0 items-center gap-3 border-b border-blue-100 px-5 py-4 sm:border-b-0 sm:border-r sm:px-7">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><DollarSign size={20}/></span>
+            <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Tasa referencial</p><p className="mt-1 text-sm font-black text-slate-900">{procedure.estimatedCost}</p></div>
           </div>
-
-          <div className="p-4 bg-slate-50/70 rounded-2xl border border-gray-200/50 flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Award size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">
-                Dificultad
-              </p>
-              <p
-                className={`inline-block px-2 py-0.5 mt-0.5 text-[10px] font-bold rounded-md border ${getComplexityBadgeStyle(procedure.complexity)}`}
-              >
-                {procedure.complexity}
-              </p>
-            </div>
+          <div className="flex min-w-0 items-center gap-3 px-5 py-4 sm:px-7">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700"><Award size={20}/></span>
+            <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Nivel de dificultad</p><p className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getComplexityBadgeStyle(procedure.complexity)}`}>{procedure.complexity}</p></div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ========================================================================= */}
       {/* ======================== FLOW A: AUTOGESTIONAR TRÁMITE ================== */}
@@ -1075,23 +1044,23 @@ export default function WorkspaceView({
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-100">Progreso actual</p>
-                    <p className="mt-1 text-sm font-bold text-white">{completedStepIds.length} de {procedure.steps.length} pasos</p>
+                    <p className="mt-1 text-sm font-bold text-white">{displayedCompletedCount} de {displayedRouteSteps.length} pasos</p>
                   </div>
-                  <strong className="text-3xl font-black">{completionPercentageA}%</strong>
+                  <strong className="text-3xl font-black">{displayedProgress}%</strong>
                 </div>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-950/25 p-0.5">
-                  <div className={`h-full rounded-full transition-all duration-500 ${isAllStepsCompleted ? "bg-emerald-300" : isPriorStepsCompleted ? "bg-amber-300" : "bg-cyan-300"}`} style={{ width: `${completionPercentageA}%` }} />
+                  <div className={`h-full rounded-full transition-all duration-500 ${displayedProgress === 100 ? "bg-emerald-300" : "bg-cyan-300"}`} style={{ width: `${displayedProgress}%` }} />
                 </div>
                 <p className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-50">
-                  {isAllStepsCompleted ? <CheckCircle2 size={16} className="text-emerald-300"/> : <CircleDashed size={16} className="text-cyan-300"/>}
-                  {isAllStepsCompleted ? "Trámite finalizado" : isPriorStepsCompleted ? "Solo falta el paso final" : delegationIntent ? `Siguiente: ${nextPendingStep?.title || "elegir asesor"}` : "Ruta en curso"}
+                  {displayedProgress === 100 ? <CheckCircle2 size={16} className="text-emerald-300"/> : <CircleDashed size={16} className="text-cyan-300"/>}
+                  {delegationIntent ? (displayedProgress === 100 ? "Preparación lista: ya puedes elegir asesor" : `Siguiente: ${displayedNextStep?.title || "completar requisitos"}`) : isAllStepsCompleted ? "Trámite finalizado" : isPriorStepsCompleted ? "Solo falta el paso final" : "Ruta en curso"}
                 </p>
               </div>
             </div>
           </section>
 
           {/* INTERMEDIATE BANNER: ALL REQUIREMENTS COMPLETED EXCEPT FINAL PICKUP */}
-          {isPriorStepsCompleted && !isAllStepsCompleted && (
+          {!delegationIntent && isPriorStepsCompleted && !isAllStepsCompleted && (
             <div className="bg-amber-50/90 border-2 border-amber-300 rounded-3xl p-6 md:p-8 space-y-3 shadow-xs animate-fadeIn">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
@@ -1126,7 +1095,7 @@ export default function WorkspaceView({
           )}
 
           {/* DEFINITIVE COMPLETION BANNER: 100% COMPLETE */}
-          {isAllStepsCompleted && (
+          {!delegationIntent && isAllStepsCompleted && (
             <section className="relative overflow-hidden rounded-[2rem] border border-emerald-300 bg-[linear-gradient(115deg,#ecfdf5_0%,#effcff_62%,#dff8ff_100%)] p-6 shadow-lg shadow-emerald-100/70 animate-fadeIn sm:p-8">
               <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_1px_1px,#34d399_1px,transparent_0)] bg-size-[22px_22px]" />
               <Sparkles className="absolute right-8 top-7 text-cyan-400/60" size={26} aria-hidden="true" />
@@ -1173,37 +1142,27 @@ export default function WorkspaceView({
             <div className="mb-6 flex flex-col gap-2 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">Checklist guiado</p>
-                <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Tu ruta de actividades</h2>
-                <p className="mt-1 text-sm text-slate-500">Abre el paso actual para revisar las indicaciones y completar su acción.</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{delegationIntent ? "Requisitos previos para delegar" : "Tu ruta de actividades"}</h2>
+                <p className="mt-1 text-sm text-slate-500">{delegationIntent ? "Completa únicamente la información y los documentos que tu asesor no puede gestionar por ti." : "Abre el paso actual para revisar las indicaciones y completar su acción."}</p>
               </div>
-              <span className="text-xs font-bold text-slate-500">{procedure.steps.length - completedStepIds.length} pasos pendientes</span>
+              <span className="text-xs font-bold text-slate-500">{displayedRouteSteps.length - displayedCompletedCount} pasos pendientes</span>
             </div>
             <div className="relative space-y-3 before:absolute before:bottom-8 before:left-[22px] before:top-8 before:w-0.5 before:bg-gradient-to-b before:from-blue-300 before:via-blue-100 before:to-slate-100 sm:before:left-[27px]">
-            {procedure.steps.map((step, idx) => {
+            {displayedRouteSteps.length === 0 && delegationIntent && <div className="relative ml-12 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:ml-16"><CheckCircle2 className="text-emerald-600"/><h3 className="mt-3 font-black text-emerald-950">No tienes acciones personales pendientes</h3><p className="mt-1 text-sm text-emerald-800">Este trámite puede pasar directamente a la elección del asesor.</p></div>}
+            {displayedRouteSteps.map((step, idx) => {
               const isEvidenceStep = isStepEvidenceRequired(
                 step,
                 procedure,
                 requirements,
               );
               const isStepDone = completedStepIds.includes(step.id);
-              const isCurrentStep = !isStepDone && procedure.steps.findIndex((item) => !completedStepIds.includes(item.id)) === idx;
+              const isCurrentStep = !isStepDone && displayedRouteSteps.findIndex((item) => !completedStepIds.includes(item.id)) === idx;
               const isLockedStep = !isStepDone && !isCurrentStep;
               const isExpanded = expandedStepId === step.id;
               const completionDetail = completedStepDetails[step.id];
               const stepReq =
                 requirements.find((r) => r.requiredForStepId === step.id) ||
                 requirements[0];
-              const paymentInfo = getPaymentInfo(
-                step.title,
-                step.description,
-                procedure.id,
-              );
-              const officialUrl = getStepOfficialUrl(
-                step.id,
-                procedure.id,
-                officialSource.url,
-              );
-
               return (
                 <article
                   key={step.id}
@@ -1290,29 +1249,6 @@ export default function WorkspaceView({
                         </p>
                       </div>
 
-                      {/* Direct Link to Official Portal if available */}
-                      {(paymentInfo || officialUrl) && !isStepDone && (
-                        <div>
-                          <a
-                            href={paymentInfo ? paymentInfo.url : officialUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"
-                          >
-                            <Globe size={12} className="text-blue-600" />
-                            <span>
-                              {paymentInfo
-                                ? paymentInfo.label
-                                : "Ir al Portal Oficial"}
-                            </span>
-                            <ExternalLink
-                              size={10}
-                              className="text-slate-400"
-                            />
-                          </a>
-                        </div>
-                      )}
-
                       {/* Action Area (Compact Upload zone or Manual Check) */}
                       <div>
                         {isEvidenceStep ? (
@@ -1394,42 +1330,13 @@ export default function WorkspaceView({
                             )}
                           </div>
                         ) : (
-                          <div className="mt-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleManualStep(step.id);
-                              }}
-                              className={`flex min-h-14 w-full cursor-pointer items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${
-                                isStepDone
-                                  ? "border-emerald-300 bg-emerald-50/90 text-emerald-950"
-                                  : "border-blue-200 bg-blue-600 text-white shadow-md shadow-blue-600/15 hover:bg-blue-700"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`grid size-7 shrink-0 place-items-center rounded-lg border transition-all ${
-                                    isStepDone
-                                      ? "bg-emerald-600 border-emerald-600 text-white"
-                                      : "border-white/40 bg-white/15 text-white"
-                                  }`}
-                                >
-                                  <Check size={12} strokeWidth={3} />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-extrabold">
-                                    {isStepDone ? "Actividad completada" : "Completar este paso"}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {isStepDone && (
-                                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">
-                                  Listo
-                                </span>
-                              )}
-                            </button>
-                          </div>
+                          <InlineStepChecklist
+                            step={step}
+                            value={inlineStepData[step.id] || { date: today() }}
+                            onChange={(next) => setInlineStepData((current) => ({ ...current, [step.id]: next }))}
+                            onOpenModal={() => toggleManualStep(step.id)}
+                            onComplete={(data) => void completeAction(step, data)}
+                          />
                         )}
                       </div>
                     </div>
@@ -1571,8 +1478,8 @@ export default function WorkspaceView({
                       disabled={isPaying}
                       className="flex-1 sm:flex-none px-4 py-2.5 border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
                     >
-                      <Trash2 size={13} />
-                      Eliminar trámite
+                      {hasStartedProcedure ? <X size={13}/> : <Trash2 size={13} />}
+                      {hasStartedProcedure ? "Cancelar trámite" : "Eliminar trámite"}
                     </button>
                   </div>
 
@@ -1767,29 +1674,30 @@ export default function WorkspaceView({
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete or cancellation confirmation modal */}
       {showDeleteConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-gray-150">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                <Trash2 size={20} />
+                {hasStartedProcedure ? <AlertTriangle size={20}/> : <Trash2 size={20} />}
               </div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
-                  ¿Eliminar este trámite?
+                  {hasStartedProcedure ? "¿Cancelar este trámite?" : "¿Eliminar este trámite?"}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Esta acción no se puede deshacer.
+                  {hasStartedProcedure ? "El trámite pasará a tu historial como cancelado." : "Esta acción no se puede deshacer."}
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-gray-200">
-              Se eliminará permanentemente{" "}
-              <strong className="text-slate-900">"{procedure.title}"</strong> de
-              tu lista de trámites en proceso, perdiendo todo el avance del
-              checklist y los documentos adjuntos.
+              {hasStartedProcedure ? <>
+                Se cancelará <strong className="text-slate-900">"{procedure.title}"</strong> y ya no podrás continuar su checklist. Los pagos realizados a la entidad o por servicios de gestión <strong className="text-red-700">no serán reembolsados</strong>.
+              </> : <>
+                Se eliminará permanentemente <strong className="text-slate-900">"{procedure.title}"</strong> de tu lista. Como todavía no registraste avances ni pagos, no se conservará en el historial.
+              </>}
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -1803,56 +1711,13 @@ export default function WorkspaceView({
                 onClick={() => {
                   setShowDeleteConfirmModal(false);
                   if (onDeleteProcedure) {
-                    onDeleteProcedure(procedure.id);
+                    onDeleteProcedure(procedure.id, hasStartedProcedure ? "cancel" : "delete");
                   }
                 }}
                 className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <Trash2 size={14} />
-                Sí, eliminar trámite
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Restricted Modal (Paid Delegated Procedure) */}
-      {showDeleteRestrictedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-gray-150">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                <Lock size={20} />
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Opción no disponible
-                </h3>
-                <p className="text-xs text-amber-600 font-bold">
-                  Trámite en gestión activa por asesor
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-xs text-slate-600 leading-relaxed bg-amber-50/50 p-4 rounded-2xl border border-amber-200/80">
-              <p>
-                Este trámite fue abonado y asignado a tu asesor experto{" "}
-                <strong className="text-slate-900">{advisor.name}</strong>,
-                quien ya inició las gestiones formales ante la entidad pública.
-              </p>
-              <p className="text-[11px] text-slate-500 font-medium pt-1">
-                Por seguridad y cumplimiento legal, no es posible eliminar
-                solicitudes activas pagadas. Si requieres cancelar o solicitar
-                una reasignación, contacta a soporte de TramIA.
-              </p>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setShowDeleteRestrictedModal(false)}
-                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
-              >
-                Entendido
+                {hasStartedProcedure ? <AlertTriangle size={14}/> : <Trash2 size={14} />}
+                {hasStartedProcedure ? "Sí, cancelar trámite" : "Sí, eliminar trámite"}
               </button>
             </div>
           </div>
@@ -1874,8 +1739,12 @@ export default function WorkspaceView({
             setIsPaid(true);
             setIsDelegated(true);
             setDelegationIntent(false);
-            setIsDelegationModalOpen(false);
           }}
+          onContact={() => {
+            setIsDelegationModalOpen(false);
+            setIsBotChatOpen(true);
+          }}
+          onFinish={onBack}
         />
       )}
 
@@ -1923,66 +1792,59 @@ export default function WorkspaceView({
 
       {/* Document Validation Modal Integration */}
       {actionStep && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4">
+        <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-[#06142f]/75 p-3 backdrop-blur-md sm:p-5" role="dialog" aria-modal="true" aria-labelledby="complete-stage-title">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void completeAction();
             }}
-            className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl"
+            className={`my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-[2rem] border border-white/60 bg-white shadow-[0_32px_100px_rgba(3,18,52,.38)] sm:max-h-[calc(100dvh-2.5rem)] ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "max-w-lg" : "max-w-2xl"}`}
           >
-            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-              Completar etapa
-            </p>
-            <h2 className="mt-2 text-2xl font-black">{actionStep.title}</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              {actionStep.description}
-            </p>
-            <div className="mt-5 space-y-4">
-              <label className="block text-xs font-black">
-                  Fecha de realización
-                  <input
-                    type="date"
-                    required
-                    className="field-input mt-2"
-                    value={actionData.date || ""}
-                    onChange={(e) =>
-                      setActionData({ ...actionData, date: e.target.value })
-                    }
-                  />
-                  <span className="mt-1 block text-[11px] font-normal text-slate-500">Esta fecha quedará registrada junto con la confirmación.</span>
+            <header className={`relative overflow-hidden bg-[linear-gradient(120deg,#071a3d,#0d55c7_62%,#12afd1)] px-5 text-white sm:px-7 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "py-5" : "py-6 sm:py-7 sm:pr-40"}`}>
+              <div className="pointer-events-none absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] bg-size-[22px_22px]"/>
+              <button type="button" onClick={() => { setActionStep(null); setActionData({}); }} aria-label="Cerrar" className="absolute right-4 top-4 z-10 grid size-10 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"><X size={18}/></button>
+              <div className="relative">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-cyan-100"><ClipboardList size={14}/> Completar etapa</span>
+                <h2 id="complete-stage-title" className="mt-3 text-2xl font-black leading-tight sm:text-3xl">{actionStep.title}</h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{actionStep.description}</p>
+              </div>
+              {(actionStep.actionConfig?.fields?.length || 0) > 0 && <img src="/assets/mascot/tramia-bot-guiding.png" alt="" className="absolute -bottom-5 right-6 hidden h-36 object-contain drop-shadow-xl sm:block" aria-hidden="true"/>}
+            </header>
+
+            <div className={`p-5 sm:p-7 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "space-y-4" : "space-y-5"}`}>
+              {(actionStep.actionConfig?.fields?.length || 0) > 0 && <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4"><Info className="mt-0.5 shrink-0 text-blue-600" size={18}/><p className="text-xs leading-5 text-slate-600">Registra los datos que correspondan. Los campos obligatorios están identificados; la información adicional es opcional.</p></div>}
+
+              <div className={`grid gap-4 ${(actionStep.actionConfig?.fields?.length || 0) > 0 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                <label className="block text-xs font-black text-slate-800">
+                    <span className="inline-flex items-center gap-1.5"><CalendarCheck2 size={15} className="text-blue-600"/>Fecha de realización <span className="text-red-500">*</span></span>
+                    <input type="date" required className="field-input mt-2" value={actionData.date || ""} onChange={(e) => setActionData({ ...actionData, date: e.target.value })}/>
+                    <span className="mt-1.5 block text-[11px] font-normal leading-4 text-slate-500">Quedará registrada junto con la confirmación.</span>
                 </label>
-              {actionData.documentId && (
-                <a href={`/api/v1/documents/${actionData.documentId}/content`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700"><span className="inline-flex min-w-0 items-center gap-2"><FileText size={16}/><span className="truncate">{actionData.fileName || "Ver archivo adjunto"}</span></span><Eye size={16}/></a>
-              )}
-              {actionStep.actionConfig?.fields?.map(field=><label key={field.key} className="block text-xs font-black">{field.label}{field.type==='select'?<select required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}><option value="">Selecciona</option>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:<input type={field.type||'text'} required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}/>}</label>)}
-              <label className="block text-xs font-black">
-                Información o referencia
-                <textarea
-                  className="field-input mt-2 min-h-24"
-                  required
-                  value={actionData.notes || ""}
-                  onChange={(e) =>
-                    setActionData({ ...actionData, notes: e.target.value })
-                  }
-                />
-              </label>
-              <label className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                <input type="checkbox" required />
-                Marcar etapa como realizada. Al confirmar, quedará bloqueada y
-                no se podrá modificar.
+                {actionStep.actionConfig?.fields?.map(field=><label key={field.key} className="block text-xs font-black text-slate-800"><span>{field.label}{field.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 font-medium text-slate-400">(opcional)</span>}</span>{field.type==='select'?<select required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}><option value="">Selecciona una opción</option>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:<input type={field.type||'text'} required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}/>}</label>)}
+              </div>
+
+              {actionData.documentId && <a href={`/api/v1/documents/${actionData.documentId}/content`} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"><span className="inline-flex min-w-0 items-center gap-2"><FileText size={17}/><span className="truncate">{actionData.fileName || "Ver archivo adjunto"}</span></span><Eye size={17}/></a>}
+
+              {(actionStep.actionConfig?.fields?.length || 0) > 0 && <label className="block text-xs font-black text-slate-800">
+                <span>Información o referencia <span className="font-medium text-slate-400">(opcional)</span></span>
+                <textarea className="field-input mt-2 min-h-24 resize-y" placeholder="Agrega una nota, número de referencia o detalle que quieras recordar." value={actionData.notes || ""} onChange={(e) => setActionData({ ...actionData, notes: e.target.value })}/>
+              </label>}
+
+              <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 text-xs leading-5 text-amber-950 transition hover:border-amber-300 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "p-3" : "p-4"}`}>
+                <input type="checkbox" required className="mt-0.5 size-4 shrink-0 accent-blue-600"/>
+                <span><strong className="block">Confirmo que completé esta etapa</strong><span className="mt-0.5 block text-amber-800">Al guardarla quedará cerrada y ya no se podrá modificar.</span></span>
               </label>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className={`grid gap-3 border-t border-slate-100 bg-slate-50/70 sm:grid-cols-2 sm:px-7 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "p-4" : "p-5"}`}>
               <button
                 type="button"
-                onClick={() => setActionStep(null)}
-                className="min-h-11 rounded-xl bg-slate-100 font-black"
+                onClick={() => { setActionStep(null); setActionData({}); }}
+                className="min-h-12 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-100"
               >
                 Cancelar
               </button>
-              <button className="min-h-11 rounded-xl bg-blue-600 font-black text-white">
-                Guardar y completar
+              <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700">
+                <ShieldCheck size={17}/> Guardar y completar
               </button>
             </div>
           </form>
@@ -2025,4 +1887,83 @@ export default function WorkspaceView({
       />
     </div>
   );
+}
+
+function InlineStepChecklist({
+  step,
+  value,
+  onChange,
+  onOpenModal,
+  onComplete,
+}: {
+  step: Step;
+  value: Record<string, string>;
+  onChange: (value: Record<string, string>) => void;
+  onOpenModal: () => void;
+  onComplete: (value: Record<string, string>) => void;
+}) {
+  const fields = step.actionConfig?.fields || [];
+  const isSimpleStep = fields.length === 0;
+  const requiredReady = Boolean(value.date) && fields.filter((field) => field.required).every((field) => Boolean(value[field.key]?.trim()));
+  const confirmed = value.confirmed === "true";
+  const update = (key: string, nextValue: string) => onChange({ ...value, [key]: nextValue });
+  const stateIcon = (complete: boolean) => <span className={`grid size-8 shrink-0 place-items-center rounded-full border-2 ${complete ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-400"}`}>{complete ? <Check size={15} strokeWidth={3}/> : <CircleDashed size={15}/>}</span>;
+
+  if (isSimpleStep) {
+    return <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Confirmación de etapa</p><p className="mt-0.5 text-[11px] text-slate-500">Registra la fecha y confirma que terminaste.</p></div>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpenModal(); }} className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 text-[10px] font-black text-blue-700 transition hover:bg-blue-50"><MousePointerClick size={14}/>Abrir formulario</button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/35">
+        <div className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(210px,.7fr)] sm:items-center sm:p-4">
+          <label className="flex min-w-0 items-center gap-3">
+            {stateIcon(Boolean(value.date))}
+            <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-1.5 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
+          </label>
+          <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition ${confirmed ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+            <input type="checkbox" checked={confirmed} onChange={(event) => update("confirmed", event.target.checked ? "true" : "")} className="mt-0.5 size-4 shrink-0 accent-blue-600"/>
+            <span><strong className="block text-xs text-slate-900">Confirmo que terminé</strong><span className="mt-0.5 block text-[10px] leading-4 text-slate-600">Al guardar, el paso quedará cerrado.</span></span>
+          </label>
+        </div>
+      </div>
+
+      <button type="button" disabled={!requiredReady || !confirmed} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={16}/>{requiredReady ? confirmed ? "Guardar y completar paso" : "Confirma que terminaste la etapa" : "Selecciona la fecha de realización"}</button>
+    </div>;
+  }
+
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Datos de la etapa</p><p className="mt-1 text-xs text-slate-500">Completa cada punto y confirma cuando todo esté listo.</p></div>
+      <button type="button" onClick={(event) => { event.stopPropagation(); onOpenModal(); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 text-[11px] font-black text-blue-700 transition hover:bg-blue-50"><MousePointerClick size={15}/>Completar en una ventana</button>
+    </div>
+
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <label className="flex items-start gap-3 border-b border-slate-100 p-4">
+        {stateIcon(Boolean(value.date))}
+        <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
+      </label>
+
+      {fields.map((field) => {
+        const complete = Boolean(value[field.key]?.trim());
+        return <label key={field.key} className="flex items-start gap-3 border-b border-slate-100 p-4">
+          {stateIcon(complete)}
+          <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">{field.label}{field.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 font-medium text-slate-400">(opcional)</span>}</span>{field.type === "select" ? <select required={field.required} className="field-input mt-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}><option value="">Selecciona una opción</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select> : <input type={field.type || "text"} required={field.required} className="field-input mt-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}/>}</span>
+        </label>;
+      })}
+
+      <label className="flex items-start gap-3 border-b border-slate-100 p-4">
+        {stateIcon(Boolean(value.notes?.trim()))}
+        <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Información o referencia <span className="font-medium text-slate-400">(opcional)</span></span><textarea className="field-input mt-2 min-h-20 resize-y" placeholder="Nota, número de referencia o detalle que quieras recordar." value={value.notes || ""} onChange={(event) => update("notes", event.target.value)}/></span>
+      </label>
+
+      <label className={`flex cursor-pointer items-start gap-3 p-4 transition ${confirmed ? "bg-emerald-50" : "bg-amber-50/70"}`}>
+        <input type="checkbox" checked={confirmed} onChange={(event) => update("confirmed", event.target.checked ? "true" : "")} className="mt-1 size-4 shrink-0 accent-blue-600"/>
+        <span><strong className="text-xs text-slate-900">Confirmo que completé esta etapa</strong><span className="mt-1 block text-[11px] leading-4 text-slate-600">Después de guardarla quedará cerrada y no se podrá modificar.</span></span>
+      </label>
+    </div>
+
+    <button type="button" disabled={!requiredReady || !confirmed} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={17}/>{requiredReady ? confirmed ? "Guardar y completar paso" : "Confirma que completaste la etapa" : "Completa los datos obligatorios"}</button>
+  </div>;
 }

@@ -11,6 +11,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
+import { confirmTramia } from "./TramiaDialog";
 type Master = { id: string; name: string };
 type Props = {
   procedureId: string | null;
@@ -518,7 +519,7 @@ function Collection({
     }
   };
   const remove = async (x: any) => {
-    if (!confirm("¿Eliminar este elemento?")) return;
+    if (!await confirmTramia({ title: "¿Eliminar este elemento?", message: "Se retirará del catálogo administrativo y esta acción no se puede deshacer.", variant: "danger", confirmLabel: "Sí, eliminar" })) return;
     await request(`/api/v1/admin/${kind}/${x.id}`, "DELETE");
     await reload();
   };

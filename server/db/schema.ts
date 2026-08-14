@@ -457,7 +457,7 @@ export const ratings = pgTable('ratings', {
   userProcedureId: uuid('user_procedure_id').notNull().references(() => userProcedures.id, { onDelete: 'cascade' }),
   reviewerUserId: uuid('reviewer_user_id').notNull().references(() => users.id),
   reviewedUserId: uuid('reviewed_user_id').notNull().references(() => users.id),
-  rating: smallint('rating').notNull(),
+  rating: numeric('rating', { precision: 2, scale: 1, mode: 'number' }).notNull(),
   comment: varchar('comment', { length: 1000 }),
   ratingType: varchar('rating_type', { length: 30 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

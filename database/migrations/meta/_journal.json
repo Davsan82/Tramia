@@ -64,6 +64,13 @@
       "when": 1786605298914,
       "tag": "0008_chunky_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786685844049,
+      "tag": "0009_colorful_kabuki",
+      "breakpoints": true
     }
   ]
 }

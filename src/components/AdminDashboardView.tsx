@@ -25,8 +25,10 @@ import AdminAuditView from "./AdminAuditView";
 import AdminLoginView from "./AdminLoginView";
 import AdminSettingsView from "./AdminSettingsView";
 import AdminFinanceView from "./AdminFinanceView";
+import type { UserProfile } from "../types";
 
 type Payload = {
+  currentUser: UserProfile;
   summary: {
     users: { total: number; verified: number; active: number };
     procedures: { total: number; active: number; featured: number };
@@ -148,6 +150,7 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
             >
               <ArrowLeft size={15} /> Volver al resumen
             </button>
+            {data?.currentUser && <AdminIdentity user={data.currentUser} />}
           </div>
         </header>
         <main className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
@@ -187,6 +190,7 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
           >
             <ArrowLeft size={15} /> Volver a TramIA
           </button>
+          {data?.currentUser && <AdminIdentity user={data.currentUser} />}
         </div>
       </header>
       <main className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
@@ -399,6 +403,42 @@ function AdminModuleNav({
         </button>
       ))}
     </nav>
+  );
+}
+function AdminIdentity({ user }: { user: UserProfile }) {
+  const displayName = user.fullName || user.username || "Administrador";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <div
+      className="flex min-h-10 min-w-0 items-center gap-2 rounded-xl border border-violet-100 bg-violet-50/70 px-2.5"
+      title={`${displayName} · ${user.email}`}
+    >
+      {user.avatarUrl ? (
+        <img
+          src={user.avatarUrl}
+          alt={`Foto de ${displayName}`}
+          className="size-7 shrink-0 rounded-lg object-cover ring-1 ring-violet-200"
+        />
+      ) : (
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-violet-700 text-[10px] font-black text-white">
+          {initials}
+        </span>
+      )}
+      <span className="hidden min-w-0 text-left md:block">
+        <strong className="block max-w-40 truncate text-[11px] font-black text-slate-800">
+          {displayName}
+        </strong>
+        <span className="block text-[9px] font-bold uppercase tracking-wider text-violet-700">
+          Administrador · Sesión activa
+        </span>
+      </span>
+    </div>
   );
 }
 function Metric({

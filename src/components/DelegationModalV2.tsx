@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   BadgeCheck,
   CheckCircle2,
+  ArrowRight,
+  Clock3,
+  CreditCard,
   LoaderCircle,
   LockKeyhole,
+  MessageSquare,
   Star,
   UserRound,
   X,
@@ -32,10 +36,14 @@ export default function DelegationModalV2({
   item,
   onClose,
   onSaved,
+  onContact,
+  onFinish,
 }: {
   item: { id: string };
   onClose: () => void;
   onSaved: () => void;
+  onContact?: () => void;
+  onFinish?: () => void;
 }) {
   const [data, setData] = useState<any>();
   const [prerequisites, setPrerequisites] = useState<any>();
@@ -95,6 +103,7 @@ export default function DelegationModalV2({
 
   const ready = Boolean(prerequisites?.ready);
   const selectedCard = cards.find((card) => card.id === cardId);
+  const selectedAdvisor = data?.advisors?.find((advisor: Advisor) => advisor.userId === (data?.delegation?.requestedAdvisorId || advisorId));
   const currentStage = !ready ? 1 : !data?.delegation ? 2 : data.delegation.status === 'awaiting_payment' ? 3 : 4;
 
   const confirmPayment = async () => {
@@ -115,7 +124,10 @@ export default function DelegationModalV2({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'No pudimos procesar el pago.');
       setPaymentStatus('approved');
-      window.setTimeout(onSaved, 1600);
+      await load();
+      onSaved();
+      setSaving(false);
+      window.setTimeout(() => setPaymentStatus(null), 1200);
     } catch (cause) {
       setPaymentStatus(null);
       setSaving(false);
@@ -193,8 +205,27 @@ export default function DelegationModalV2({
             )}
 
             {ready && data.delegation?.status === 'awaiting_payment' && (
-              <section>
-                <h3 className="font-black">3. Elige cómo pagar</h3>
+              <section className="space-y-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">Paso final antes de delegar</p>
+                  <h3 className="mt-1 text-xl font-black text-slate-950">Revisa el servicio y elige cómo pagar</h3>
+                  <p className="mt-1 text-sm text-slate-500">El asesor empezará a gestionar tu trámite cuando se confirme esta operación de prueba.</p>
+                </div>
+
+                {selectedAdvisor && <div className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-blue-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-blue-100 text-blue-700">{selectedAdvisor.avatarUrl ? <img src={selectedAdvisor.avatarUrl} alt={selectedAdvisor.publicName} className="h-full w-full object-cover"/> : <UserRound/>}</span>
+                    <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-blue-600">Asesor elegido</p><strong className="mt-1 block truncate text-sm text-slate-950">{selectedAdvisor.publicName}</strong><p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Star size={13} className="fill-amber-400 text-amber-400"/>{selectedAdvisor.averageRating} · {selectedAdvisor.completedCasesCount} trámites realizados</p></div>
+                  </div>
+                  {selectedAdvisor.idVerified && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase text-emerald-800"><BadgeCheck size={14}/> ID verificado</span>}
+                </div>}
+
+                <div className="overflow-hidden rounded-3xl border border-slate-200">
+                  <div className="flex items-center justify-between gap-4 p-4"><div><p className="text-sm font-black text-slate-900">Servicio de gestión TramIA</p><p className="mt-1 text-xs text-slate-500">Acompañamiento, revisión y seguimiento con tu asesor.</p></div><strong className="shrink-0 text-lg text-slate-950">S/ {(data.delegation.quotedAmountMinor / 100).toFixed(2)}</strong></div>
+                  <div className="flex items-center justify-between gap-4 border-t border-blue-100 bg-blue-50 px-4 py-3"><span className="text-xs font-black uppercase tracking-[.12em] text-blue-800">Total</span><strong className="text-xl text-blue-950">S/ {(data.delegation.quotedAmountMinor / 100).toFixed(2)}</strong></div>
+                </div>
+
+                <div className="flex items-center gap-2"><CreditCard size={18} className="text-blue-600"/><h4 className="font-black text-slate-950">Tarjeta para el pago</h4></div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {cards.map((card) => (
                     <button key={card.id} onClick={() => setCardId(card.id)} className={`overflow-hidden rounded-2xl border text-left transition ${cardId === card.id ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300'}`}>
@@ -208,12 +239,18 @@ export default function DelegationModalV2({
                 </div>
                 {!cards.length && <p className="mt-3 rounded-xl bg-amber-50 p-4 text-sm">Primero agrega una tarjeta en Mi perfil.</p>}
                 <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800"><strong>Operación protegida.</strong> Este módulo se encuentra en entorno de prueba y no procesa dinero real.</p>
-                <button disabled={!cardId || saving} onClick={() => void confirmPayment()} className="mt-4 min-h-12 w-full rounded-xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-40">Pagar y continuar</button>
+                <button disabled={!cardId || saving} onClick={() => void confirmPayment()} className="min-h-13 w-full rounded-2xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-40"><span className="inline-flex items-center gap-2"><LockKeyhole size={17}/>Pagar S/ {(data.delegation.quotedAmountMinor / 100).toFixed(2)} y comenzar delegación</span></button>
               </section>
             )}
 
             {ready && data.delegation && data.delegation.status !== 'awaiting_payment' && (
-              <section className="rounded-3xl bg-emerald-50 p-6 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={34} /><h3 className="mt-3 font-black">Delegación en proceso</h3><p className="mt-2 text-sm text-slate-600">Revisa la asignación, conversa con tu asesor y sigue el avance desde Mis trámites.</p></section>
+              <section className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-[linear-gradient(145deg,#ecfdf5,#effcff)] p-5 sm:p-7">
+                <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-cyan-200/40 blur-3xl"/>
+                <div className="relative text-center"><span className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-200"><CheckCircle2 size={34}/></span><p className="mt-4 text-[10px] font-black uppercase tracking-[.16em] text-emerald-700">Pago confirmado</p><h3 className="mt-1 text-2xl font-black text-slate-950">Tu delegación ya comenzó</h3><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">El asesor elegido ya fue asignado y puede empezar a gestionar tu trámite. Desde ahora podrás conversar con él y seguir cada actualización.</p></div>
+                {selectedAdvisor && <div className="relative mt-6 flex flex-col gap-4 rounded-2xl border border-white bg-white/85 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-blue-100 text-blue-700">{selectedAdvisor.avatarUrl ? <img src={selectedAdvisor.avatarUrl} alt={selectedAdvisor.publicName} className="h-full w-full object-cover"/> : <UserRound/>}</span><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-emerald-700">Asesor asignado</p><strong className="mt-1 block truncate text-sm text-slate-950">{selectedAdvisor.publicName}</strong>{selectedAdvisor.idVerified && <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-black text-emerald-700"><BadgeCheck size={13}/> ID verificado</span>}</div></div><button type="button" onClick={onContact} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white transition hover:bg-blue-700"><MessageSquare size={16}/>Contactar a mi asesor</button></div>}
+                <div className="relative mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-emerald-100 bg-white/75 p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Código de seguimiento</p><p className="mt-1 break-all text-xs font-black text-slate-900">{data.procedure?.trackingCode || item.id}</p></div><div className="rounded-2xl border border-emerald-100 bg-white/75 p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Estado actual</p><p className="mt-1 inline-flex items-center gap-1.5 text-xs font-black text-emerald-700"><Clock3 size={14}/>Gestión con asesor activa</p></div></div>
+                <button type="button" onClick={onFinish || onClose} className="relative mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">Ir a mis trámites <ArrowRight size={17}/></button>
+              </section>
             )}
 
             {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}

@@ -7,6 +7,43 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-14
+
+### Agregado
+
+- Hard reset administrativo transaccional con validación en servidor, cuenta regresiva cancelable, animación, auditoría y conservación explícita de usuarios, asesores y catálogo.
+- Formularios integrados dentro de cada etapa del checklist, con fecha, campos configurables, evidencias y confirmación irreversible.
+- Alertas y confirmaciones propias de TramIA para reemplazar los diálogos nativos del navegador.
+- Identidad visible del administrador y estado de sesión coherente al regresar al sitio público.
+- Documentación operativa para extender el alcance del Hard reset a futuras tablas.
+
+### Corregido
+
+- Cambio entre autogestión y delegación para mostrar únicamente los requisitos previos aplicables antes de elegir asesor y pagar.
+- Eliminación permitida solo antes de registrar avances; después del primer paso, el trámite se cancela y pasa al historial con advertencia de no reembolso.
+- Formularios simples compactados y referencia opcional sin perder la fecha ni la confirmación obligatoria.
+- Codificación UTF-8 de mensajes de contacto y normalización preventiva de caracteres latinos dañados.
+- Destino de los detalles históricos y contadores de trámites activos, completados y cancelados.
+- Parpadeo de acciones de invitado mientras el navegador recuperaba una sesión activa.
+
+### Mejorado
+
+- Checklist responsive con datos en línea, bloqueo secuencial, porcentaje único, siguiente paso y cierre visual del trámite.
+- Flujo de delegación con selección de asesor, requisitos reducidos, pago con tarjeta y estado posterior a la confirmación.
+- Calificaciones de asesores en incrementos de media estrella y bloqueo permanente después de enviarlas.
+- Tarjetas con selección explícita y serializada para mantener una única predeterminada por usuario.
+- Catálogo y controles administrativos, reportes financieros, gestión de usuarios y documentos.
+- Mensajes de finalización, cancelación, errores y acciones irreversibles alineados con la identidad visual de TramIA.
+
+### Base de datos
+
+- Migración de `ratings.rating` a `numeric(2,1)` para admitir medias estrellas.
+- Reinicio coherente de estadísticas operativas de asesores durante un Hard reset.
+
+### Verificado
+
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción finalizan correctamente.
+
 ## [0.7.0] - 2026-08-13
 
 ### Agregado

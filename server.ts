@@ -5,9 +5,9 @@ import { checkDatabaseConnection } from './server/db';
 import { getCatalogBootstrap, getProcedureBySlug, invalidateCatalogCache, listCategories, listProcedures } from './server/repositories/catalog';
 import { openApiDocument } from './server/openapi';
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { getDrizzleDatabase } from './server/db/client';
-import { advisorAssignments, advisorExpertise, advisorProfiles, appSettings, auditEvents, authSessions, authTokens, contactMessageNotes, contactMessages, delegationRequests, expertiseAreas, notifications, organizations, paymentOrders, paymentTransactions, procedureCategories, procedureMessages, procedureRequirements, procedureSources, procedureStatusHistory, procedureSteps, procedureVersions, procedures, ratings, roles, simulatedPaymentMethods, uploadedDocuments, userProcedureRequirements, userProcedures, userProcedureSteps, userProfiles, userRoles, users } from './server/db/schema';
+import { advisorAssignments, advisorExpertise, advisorProfiles, appSettings, auditEvents, authSessions, authTokens, contactMessageNotes, contactMessages, delegationRequests, documentValidations, expertiseAreas, notifications, organizations, paymentOrders, paymentTransactions, procedureCategories, procedureMessages, procedureRequirements, procedureSources, procedureStatusHistory, procedureSteps, procedureVersions, procedures, ratings, roles, simulatedPaymentMethods, uploadedDocuments, userProcedureRequirements, userProcedures, userProcedureSteps, userProfiles, userRoles, users } from './server/db/schema';
 import { SESSION_COOKIE, consumeAuthToken, createSession, encryptPrivateValue, findSession, findUserByIdentifier, hashPassword, inspectAuthToken, issueAuthToken, parseCookie, sendAccountEmail, sendContactEmail, tokenHash, verifyPassword } from './server/services/auth';
 import { readDocument, removeDocument, saveDocument } from './server/services/document-storage';
 
@@ -205,7 +205,20 @@ app.post('/api/v1/payment-methods/simulated',async(req,res)=>{const session=awai
 
 app.delete('/api/v1/payment-methods/:id',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});await getDrizzleDatabase().update(simulatedPaymentMethods).set({isActive:false,updatedAt:new Date()}).where(and(eq(simulatedPaymentMethods.id,req.params.id),eq(simulatedPaymentMethods.userId,session.user.id)));res.status(204).end();});
 
-app.patch('/api/v1/payment-methods/:id/default',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});const db=getDrizzleDatabase();const [owned]=await db.select({id:simulatedPaymentMethods.id}).from(simulatedPaymentMethods).where(and(eq(simulatedPaymentMethods.id,req.params.id),eq(simulatedPaymentMethods.userId,session.user.id),eq(simulatedPaymentMethods.isActive,true))).limit(1);if(!owned)return res.status(404).json({error:'payment_method_not_found'});await db.transaction(async tx=>{await tx.update(simulatedPaymentMethods).set({isDefault:false,updatedAt:new Date()}).where(eq(simulatedPaymentMethods.userId,session.user.id));await tx.update(simulatedPaymentMethods).set({isDefault:true,updatedAt:new Date()}).where(eq(simulatedPaymentMethods.id,owned.id));});res.json({updated:true});});
+app.patch('/api/v1/payment-methods/:id/default', async (req, res) => {
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
+  if (!session) return res.status(401).json({ error: 'authentication_required' });
+  const db = getDrizzleDatabase();
+  const [owned] = await db.select({ id: simulatedPaymentMethods.id }).from(simulatedPaymentMethods).where(and(eq(simulatedPaymentMethods.id, req.params.id), eq(simulatedPaymentMethods.userId, session.user.id), eq(simulatedPaymentMethods.isActive, true))).limit(1);
+  if (!owned) return res.status(404).json({ error: 'payment_method_not_found', message: 'No encontramos esta tarjeta en tu cuenta.' });
+  await db.transaction(async tx => {
+    // Serializa cambios simultáneos del mismo usuario y mantiene una sola tarjeta predeterminada.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${session.user.id}))`);
+    await tx.update(simulatedPaymentMethods).set({ isDefault: false, updatedAt: new Date() }).where(eq(simulatedPaymentMethods.userId, session.user.id));
+    await tx.update(simulatedPaymentMethods).set({ isDefault: true, updatedAt: new Date() }).where(eq(simulatedPaymentMethods.id, owned.id));
+  });
+  res.json({ updated: true, defaultPaymentMethodId: owned.id, message: 'Tarjeta predeterminada actualizada.' });
+});
 
 app.get('/api/v1/payments/history',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});const rows=await getDrizzleDatabase().select({id:paymentOrders.id,status:paymentOrders.status,type:paymentOrders.type,amountMinor:paymentOrders.amountMinor,currency:paymentOrders.currency,provider:paymentOrders.provider,paidAt:paymentOrders.paidAt,createdAt:paymentOrders.createdAt,procedureTitle:procedures.title,transactionStatus:paymentTransactions.status,cardBrand:paymentTransactions.cardBrand,cardLastFour:paymentTransactions.cardLastFour,reference:paymentTransactions.providerTransactionId}).from(paymentOrders).innerJoin(userProcedures,eq(paymentOrders.userProcedureId,userProcedures.id)).innerJoin(procedures,eq(userProcedures.procedureId,procedures.id)).leftJoin(paymentTransactions,eq(paymentTransactions.paymentOrderId,paymentOrders.id)).where(eq(userProcedures.userId,session.user.id)).orderBy(desc(paymentOrders.createdAt));res.json({payments:rows});});
 
@@ -353,6 +366,94 @@ app.get('/api/v1/public/settings',async(_req,res)=>{const rows=await getDrizzleD
 app.get('/api/v1/admin/settings',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const rows=await getDrizzleDatabase().select().from(appSettings).orderBy(asc(appSettings.key));res.json({settings:rows});});
 app.put('/api/v1/admin/settings/:key',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const key=String(req.params.key).replace(/[^a-z0-9_-]/g,'');if(!key)return res.status(400).json({error:'invalid_setting'});const [saved]=await getDrizzleDatabase().insert(appSettings).values({key,value:req.body.value||{},isPublic:Boolean(req.body.isPublic),updatedBy:admin.user.id}).onConflictDoUpdate({target:appSettings.key,set:{value:req.body.value||{},isPublic:Boolean(req.body.isPublic),updatedBy:admin.user.id,updatedAt:new Date()}}).returning();await writeAdminAudit(admin.user.id,'admin.setting.updated',{key},req);res.json({data:saved});});
 
+let hardResetInProgress = false;
+const createHardResetAuthorization = (userId: string) => {
+  const payload = Buffer.from(JSON.stringify({ userId, expiresAt: Date.now() + 45_000, nonce: crypto.randomUUID() })).toString('base64url');
+  const signature = createHmac('sha256', process.env.SESSION_SECRET || 'local-development-secret').update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+};
+const verifyHardResetAuthorization = (token: string, userId: string) => {
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return false;
+  const expected = createHmac('sha256', process.env.SESSION_SECRET || 'local-development-secret').update(payload).digest('base64url');
+  const receivedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (receivedBuffer.length !== expectedBuffer.length || !timingSafeEqual(receivedBuffer, expectedBuffer)) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return data.userId === userId && Number(data.expiresAt) >= Date.now();
+  } catch { return false; }
+};
+app.post('/api/v1/admin/hard-reset/authorize', async (req, res) => {
+  const admin = await requireAdministrator(req, res); if (!admin) return;
+  const confirmation = String(req.body.confirmation || '');
+  const expectedConfirmation = process.env.HARD_RESET_CONFIRMATION || 'david';
+  if (confirmation !== expectedConfirmation) return res.status(400).json({ error: 'invalid_hard_reset_confirmation', message: 'La palabra de seguridad no es correcta.' });
+  return res.json({ authorized: true, authorization: createHardResetAuthorization(admin.user.id), expiresInSeconds: 45 });
+});
+app.post('/api/v1/admin/hard-reset', async (req, res) => {
+  const admin = await requireAdministrator(req, res); if (!admin) return;
+  if (!verifyHardResetAuthorization(String(req.body.authorization || ''), admin.user.id)) return res.status(400).json({ error: 'invalid_hard_reset_authorization', message: 'La autorización venció o no es válida. Inicia nuevamente el proceso.' });
+  if (hardResetInProgress) return res.status(409).json({ error: 'hard_reset_in_progress', message: 'Ya hay un Hard reset en ejecución.' });
+
+  hardResetInProgress = true;
+  try {
+    const db = getDrizzleDatabase();
+    const [caseCount, paymentCount, ratingCount, contactCount, documentCount, notificationCount, conversationCount, paymentMethodCount] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(userProcedures),
+      db.select({ count: sql<number>`count(*)::int` }).from(paymentOrders),
+      db.select({ count: sql<number>`count(*)::int` }).from(ratings),
+      db.select({ count: sql<number>`count(*)::int` }).from(contactMessages),
+      db.select({ count: sql<number>`count(*)::int` }).from(uploadedDocuments),
+      db.select({ count: sql<number>`count(*)::int` }).from(notifications),
+      db.select({ count: sql<number>`count(*)::int` }).from(procedureMessages),
+      db.select({ count: sql<number>`count(*)::int` }).from(simulatedPaymentMethods),
+    ]);
+    const deleted = {
+      procedures: caseCount[0]?.count || 0,
+      payments: paymentCount[0]?.count || 0,
+      ratings: ratingCount[0]?.count || 0,
+      contacts: contactCount[0]?.count || 0,
+      documents: documentCount[0]?.count || 0,
+      notifications: notificationCount[0]?.count || 0,
+      conversations: conversationCount[0]?.count || 0,
+      paymentMethods: paymentMethodCount[0]?.count || 0,
+    };
+
+    await db.transaction(async tx => {
+      await tx.delete(documentValidations);
+      await tx.delete(paymentTransactions);
+      await tx.delete(advisorAssignments);
+      await tx.delete(ratings);
+      await tx.delete(procedureMessages);
+      await tx.delete(notifications);
+      await tx.delete(uploadedDocuments);
+      await tx.delete(userProcedureRequirements);
+      await tx.delete(userProcedureSteps);
+      await tx.delete(procedureStatusHistory);
+      await tx.delete(paymentOrders);
+      await tx.delete(delegationRequests);
+      await tx.delete(userProcedures);
+      await tx.delete(contactMessageNotes);
+      await tx.delete(contactMessages);
+      await tx.delete(simulatedPaymentMethods);
+      await tx.update(advisorProfiles).set({ averageRating: '0', completedCasesCount: 0, cancelledCasesCount: 0, activeCasesCount: 0, updatedAt: new Date() });
+      await tx.insert(auditEvents).values({
+        actorUserId: admin.user.id,
+        eventName: 'admin.hard_reset.completed',
+        eventData: { deleted, preserved: ['users', 'user_profiles', 'roles', 'advisors', 'catalog', 'settings', 'auth_sessions'] },
+        ipHash: createHash('sha256').update(req.ip || 'unknown').digest('hex'),
+      });
+    });
+    return res.json({ reset: true, deleted, message: 'Hard reset completado. Las cuentas, asesores y el catálogo fueron conservados.' });
+  } catch (error) {
+    console.error('[admin-hard-reset]', error);
+    return res.status(503).json({ error: 'hard_reset_failed', message: 'No pudimos completar el Hard reset. La transacción fue revertida.' });
+  } finally {
+    hardResetInProgress = false;
+  }
+});
+
 app.get('/api/v1/my-procedures/by-procedure/:procedureId/workspace', async (req, res) => {
   const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
   if (!session) return res.status(401).json({ error: 'authentication_required' });
@@ -416,7 +517,62 @@ app.post('/api/v1/my-procedures/:id/delegation/payment',async(req,res)=>{const s
 
 app.patch('/api/v1/my-procedures/by-procedure/:procedureId/progress',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});const percentage=Math.max(0,Math.min(100,Math.round(Number(req.body.progressPercentage)||0))),currentStepId=String(req.body.currentStepId||'')||null,completedStepIds=Array.isArray(req.body.completedStepIds)?req.body.completedStepIds.map(String):[];const db=getDrizzleDatabase();const [record]=await db.select().from(userProcedures).where(and(eq(userProcedures.userId,session.user.id),eq(userProcedures.procedureId,req.params.procedureId),inArray(userProcedures.status,[...activeProcedureStatuses]))).orderBy(desc(userProcedures.updatedAt)).limit(1);if(!record)return res.status(404).json({error:'procedure_not_found'});if(['waiting_assignment','delegated'].includes(record.status))return res.status(409).json({error:'advisor_managed',message:'El avance de este trámite está bajo gestión del asesor.'});const nextStatus=percentage>=100?'completed':percentage>0?'in_progress':'active',now=new Date();await db.transaction(async tx=>{await tx.update(userProcedures).set({progressPercentage:percentage,currentStepId,status:nextStatus,completedAt:percentage>=100?now:null,updatedAt:now}).where(eq(userProcedures.id,record.id));if(completedStepIds.length)await tx.update(userProcedureSteps).set({status:'completed',completedAt:now,completedBy:session.user.id,completionSource:'user',updatedAt:now}).where(and(eq(userProcedureSteps.userProcedureId,record.id),inArray(userProcedureSteps.procedureStepId,completedStepIds)));if(currentStepId)await tx.update(userProcedureSteps).set({status:'in_progress',startedAt:now,updatedAt:now}).where(and(eq(userProcedureSteps.userProcedureId,record.id),eq(userProcedureSteps.procedureStepId,currentStepId)));if(nextStatus!==record.status)await tx.insert(procedureStatusHistory).values({userProcedureId:record.id,changedBy:session.user.id,previousStatus:record.status,newStatus:nextStatus,reason:percentage>=100?'Trámite completado por el usuario.':'Avance actualizado por el usuario.',metadata:{source:'workspace',percentage}});});res.json({updated:true,progressPercentage:percentage,status:nextStatus});});
 
-app.delete('/api/v1/my-procedures/by-procedure/:procedureId',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});const reason=String(req.body?.reason||'Cancelado por el usuario desde su espacio de trabajo.').slice(0,1000),db=getDrizzleDatabase();const [record]=await db.select().from(userProcedures).where(and(eq(userProcedures.userId,session.user.id),eq(userProcedures.procedureId,req.params.procedureId),inArray(userProcedures.status,[...activeProcedureStatuses]))).orderBy(desc(userProcedures.updatedAt)).limit(1);if(!record)return res.status(404).json({error:'procedure_not_found'});const [paid]=await db.select({count:sql<number>`count(*)::int`}).from(paymentOrders).where(and(eq(paymentOrders.userProcedureId,record.id),inArray(paymentOrders.status,['authorized','paid','partially_refunded'])));if((record.nonReturnReachedAt||(paid?.count||0)>0)&&!req.body?.acknowledgeNoRefund)return res.status(409).json({error:'cancellation_acknowledgement_required',message:'Este trámite tiene un pago o llegó a un punto de no retorno. Debes confirmar la posible no devolución.'});const now=new Date();await db.transaction(async tx=>{await tx.update(userProcedures).set({status:'cancelled',cancelledAt:now,cancellationReason:reason,updatedAt:now}).where(eq(userProcedures.id,record.id));await tx.insert(procedureStatusHistory).values({userProcedureId:record.id,changedBy:session.user.id,previousStatus:record.status,newStatus:'cancelled',reason,metadata:{source:'workspace'}})});res.json({cancelled:true});});
+app.delete('/api/v1/my-procedures/by-procedure/:procedureId', async (req, res) => {
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
+  if (!session) return res.status(401).json({ error: 'authentication_required' });
+
+  const requestedAction = req.body?.action === 'delete' ? 'delete' : 'cancel';
+  const reason = String(req.body?.reason || 'Cancelado por el usuario desde su espacio de trabajo.').slice(0, 1000);
+  const db = getDrizzleDatabase();
+  const [record] = await db.select().from(userProcedures).where(and(
+    eq(userProcedures.userId, session.user.id),
+    eq(userProcedures.procedureId, req.params.procedureId),
+    inArray(userProcedures.status, [...activeProcedureStatuses]),
+  )).orderBy(desc(userProcedures.updatedAt)).limit(1);
+  if (!record) return res.status(404).json({ error: 'procedure_not_found' });
+
+  const [[completed], [payments], [protectedPayments], [delegation]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(userProcedureSteps).where(and(eq(userProcedureSteps.userProcedureId, record.id), eq(userProcedureSteps.status, 'completed'))),
+    db.select({ count: sql<number>`count(*)::int` }).from(paymentOrders).where(eq(paymentOrders.userProcedureId, record.id)),
+    db.select({ count: sql<number>`count(*)::int` }).from(paymentOrders).where(and(eq(paymentOrders.userProcedureId, record.id), inArray(paymentOrders.status, ['authorized', 'paid', 'partially_refunded']))),
+    db.select().from(delegationRequests).where(eq(delegationRequests.userProcedureId, record.id)).limit(1),
+  ]);
+  const canDelete = record.progressPercentage === 0 && (completed?.count || 0) === 0 && (payments?.count || 0) === 0 && !record.nonReturnReachedAt;
+
+  if (requestedAction === 'delete' && canDelete) {
+    await db.delete(userProcedures).where(eq(userProcedures.id, record.id));
+    return res.json({ deleted: true, cancelled: false });
+  }
+
+  if (!req.body?.acknowledgeNoRefund) {
+    return res.status(409).json({
+      error: 'cancellation_acknowledgement_required',
+      message: 'El trámite ya fue iniciado y solo puede cancelarse.',
+      requiresAcknowledgement: true,
+      hasProtectedPayment: (protectedPayments?.count || 0) > 0,
+    });
+  }
+
+  const [assignment] = delegation ? await db.select().from(advisorAssignments).where(eq(advisorAssignments.delegationRequestId, delegation.id)).limit(1) : [];
+  const now = new Date();
+  await db.transaction(async tx => {
+    if (assignment && ['reserved', 'active'].includes(assignment.status)) {
+      await tx.update(advisorAssignments).set({ status: 'cancelled', endedAt: now, endReason: reason }).where(eq(advisorAssignments.id, assignment.id));
+      await tx.update(advisorProfiles).set({ activeCasesCount: sql`greatest(${advisorProfiles.activeCasesCount} - 1, 0)`, updatedAt: now }).where(eq(advisorProfiles.userId, assignment.advisorId));
+    }
+    if (delegation) await tx.update(delegationRequests).set({ status: 'cancelled', updatedAt: now }).where(eq(delegationRequests.id, delegation.id));
+    await tx.update(userProcedures).set({ status: 'cancelled', cancelledAt: now, cancellationReason: reason, updatedAt: now }).where(eq(userProcedures.id, record.id));
+    await tx.insert(procedureStatusHistory).values({
+      userProcedureId: record.id,
+      changedBy: session.user.id,
+      previousStatus: record.status,
+      newStatus: 'cancelled',
+      reason,
+      metadata: { source: 'workspace', noRefundAcknowledged: true, protectedPaymentCount: protectedPayments?.count || 0 },
+    });
+  });
+  return res.json({ deleted: false, cancelled: true });
+});
 
 app.post('/api/v1/my-procedures/:id/delegation/auto-assign', async (req, res) => {
   const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
@@ -510,11 +666,12 @@ app.get('/api/v1/my-procedures', async (req, res) => {
     const active = rows.filter((item) => activeProcedureStatuses.includes(item.status as typeof activeProcedureStatuses[number]));
     const history = rows.filter((item) => !activeProcedureStatuses.includes(item.status as typeof activeProcedureStatuses[number]));
     const completedCount = rows.filter((item) => item.status === 'completed').length;
+    const cancelledCount = rows.filter((item) => item.status === 'cancelled').length;
     const delegatedCompletedCount = rows.filter((item) => item.status === 'completed' && item.mode !== 'self_service').length;
     const ratedAdvisorsCount = rows.filter((item) => item.userRating !== null).length;
     return res.json({
       data: { active, history },
-      summary: { activeCount: active.length, completedCount, delegatedCompletedCount, ratedAdvisorsCount, totalCount: rows.length },
+      summary: { activeCount: active.length, completedCount, cancelledCount, delegatedCompletedCount, ratedAdvisorsCount, totalCount: rows.length },
     });
   } catch (error) {
     console.error('[my-procedures]', error);
@@ -580,7 +737,7 @@ app.post('/api/v1/my-procedures/:id/rating', async (req, res) => {
   if (!session) return res.status(401).json({ error: 'authentication_required', message: 'Inicia sesión para calificar.' });
   const stars = Number(req.body.rating);
   const comment = String(req.body.comment || '').trim().slice(0, 1000);
-  if (!Number.isInteger(stars) || stars < 1 || stars > 5) return res.status(400).json({ error: 'invalid_rating', message: 'Selecciona una calificación de 1 a 5 estrellas.' });
+  if (!Number.isInteger(stars * 2) || stars < 1 || stars > 5) return res.status(400).json({ error: 'invalid_rating', message: 'Selecciona una calificación de 1 a 5 estrellas, en incrementos de media estrella.' });
   try {
     const db = getDrizzleDatabase();
     const [record] = await db.select({ id: userProcedures.id, status: userProcedures.status, advisorId: advisorAssignments.advisorId })
@@ -593,9 +750,12 @@ app.post('/api/v1/my-procedures/:id/rating', async (req, res) => {
     if (record.status !== 'completed') return res.status(409).json({ error: 'procedure_not_completed', message: 'Podrás calificar al asesor cuando el trámite haya finalizado.' });
     if (!record.advisorId) return res.status(409).json({ error: 'advisor_not_assigned', message: 'Este trámite no tuvo un asesor asignado.' });
 
+    const [existing] = await db.select({ id: ratings.id }).from(ratings).where(and(eq(ratings.userProcedureId, record.id), eq(ratings.reviewerUserId, session.user.id), eq(ratings.reviewedUserId, record.advisorId))).limit(1);
+    if (existing) return res.status(409).json({ error: 'rating_already_submitted', message: 'Esta calificación ya fue enviada y no se puede modificar.' });
     const [saved] = await db.insert(ratings).values({ userProcedureId: record.id, reviewerUserId: session.user.id, reviewedUserId: record.advisorId, rating: stars, comment: comment || null, ratingType: 'advisor' })
-      .onConflictDoUpdate({ target: [ratings.userProcedureId, ratings.reviewerUserId, ratings.reviewedUserId], set: { rating: stars, comment: comment || null } })
+      .onConflictDoNothing()
       .returning({ rating: ratings.rating, comment: ratings.comment });
+    if (!saved) return res.status(409).json({ error: 'rating_already_submitted', message: 'Esta calificación ya fue enviada y no se puede modificar.' });
     const [aggregate] = await db.select({ average: sql<string>`round(avg(${ratings.rating})::numeric, 2)` }).from(ratings)
       .where(and(eq(ratings.reviewedUserId, record.advisorId), eq(ratings.ratingType, 'advisor')));
     await db.update(advisorProfiles).set({ averageRating: aggregate?.average || '0', updatedAt: new Date() }).where(eq(advisorProfiles.userId, record.advisorId));
@@ -623,6 +783,7 @@ app.get('/api/v1/admin/dashboard', async (req, res) => {
   const recentMessages = await db.select({ id: contactMessages.id, name: contactMessages.name, email: contactMessages.email, topic: contactMessages.topic, status: contactMessages.status, createdAt: contactMessages.createdAt }).from(contactMessages).orderBy(desc(contactMessages.createdAt)).limit(6);
   await db.insert(auditEvents).values({ actorUserId: admin.user.id, eventName: 'admin.dashboard.viewed', eventData: { path: req.path }, ipHash: createHash('sha256').update(req.ip || 'unknown').digest('hex') });
   res.json({
+    currentUser: publicUser(admin.user, admin.profile, admin.roleCodes),
     summary: { users: userStats[0], procedures: procedureStats[0], messages: messageStats[0], cases: caseStats[0] },
     recentUsers, recentMessages, generatedAt: new Date().toISOString(),
   });
@@ -789,7 +950,8 @@ app.get('/api/health', async (_req, res) => {
 
 const contactAttempts = new Map<string, number[]>();
 app.post('/api/v1/contact', async (req, res) => {
-  const name=String(req.body.name||'').trim(), email=String(req.body.email||'').trim().toLowerCase(), phone=String(req.body.phone||'').trim(), topic=String(req.body.topic||'consulta').trim(), message=String(req.body.message||'').trim(), sourcePath=String(req.body.sourcePath||'/contacto').slice(0,500);
+  const normalizeContactText=(value:unknown)=>{const source=String(value||'');const repaired=/(Ã|Â|â)/.test(source)?Buffer.from(source,'latin1').toString('utf8'):source;return repaired.normalize('NFC').trim()};
+  const name=normalizeContactText(req.body.name), email=normalizeContactText(req.body.email).toLowerCase(), phone=normalizeContactText(req.body.phone), topic=normalizeContactText(req.body.topic||'consulta'), message=normalizeContactText(req.body.message), sourcePath=normalizeContactText(req.body.sourcePath||'/contacto').slice(0,500);
   if(name.length<2||name.length>120||!/^\S+@\S+\.\S+$/.test(email)||message.length<10||message.length>2000) return res.status(400).json({error:'invalid_contact_form',message:'Revisa el nombre, correo y mensaje.'});
   const key=req.ip||'unknown', now=Date.now(), recent=(contactAttempts.get(key)||[]).filter(time=>now-time<60*60*1000); if(recent.length>=5) return res.status(429).json({error:'rate_limited',message:'Alcanzaste el límite temporal de mensajes. Inténtalo más tarde.'}); contactAttempts.set(key,[...recent,now]);
   const db=getDrizzleDatabase(); const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]); const ipHash=createHash('sha256').update(`${process.env.SESSION_SECRET||'local'}:${key}`).digest('hex');

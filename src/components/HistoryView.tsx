@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, Calendar, FileDown, AlertTriangle, Sparkles, AlertCircle, ArrowRight, Eye, CheckCircle2 } from 'lucide-react';
 import { HistoryRecord, ExpirationReminder, Procedure, ActiveProcedure } from '../types';
+import { alertTramia } from './TramiaDialog';
 
 interface HistoryViewProps {
   history: HistoryRecord[];
@@ -161,7 +162,7 @@ export default function HistoryView({
                 )}
 
                 <button
-                  onClick={() => alert(`Descargando constancia oficial de respaldo del trámite: "${proc.title}".`)}
+                  onClick={() => void alertTramia({title:'Constancia en preparación',message:`Estamos preparando la constancia de respaldo de “${proc.title}”.`,variant:'info',confirmLabel:'Entendido'})}
                   className="px-3.5 py-2 border border-gray-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-white cursor-pointer"
                 >
                   <FileDown size={14} />
@@ -208,7 +209,7 @@ export default function HistoryView({
 
                 {/* Stored documents download preview simulation */}
                 <button
-                  onClick={() => alert(`Simulando descarga cifrada del PDF oficial de respaldo de: "${record.title}". No contiene virus ni troyanos. Descarga completada.`)}
+                  onClick={() => void alertTramia({title:'Descarga de respaldo',message:`El respaldo protegido de “${record.title}” está listo para continuar con la descarga de prueba.`,variant:'success',confirmLabel:'Entendido'})}
                   className="px-4 py-2 border border-gray-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-white cursor-pointer"
                 >
                   <FileDown size={14} />

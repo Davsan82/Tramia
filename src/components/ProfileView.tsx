@@ -51,8 +51,10 @@ export default function ProfileView({
   const [contactNotice, setContactNotice] = useState<Notice>(null),
     [identityNotice, setIdentityNotice] = useState<Notice>(null),
     [emailNotice, setEmailNotice] = useState<Notice>(null),
+    [paymentNotice, setPaymentNotice] = useState<Notice>(null),
     [methods, setMethods] = useState<any[]>([]),
     [payments, setPayments] = useState<any[]>([]),
+    [updatingMethodId, setUpdatingMethodId] = useState<string | null>(null),
     [uploading, setUploading] = useState(false),
     [reputation, setReputation] = useState({ average: "0", count: 0 });
   const isIdentityVerified = profile.identityVerificationStatus === "verified";
@@ -148,14 +150,25 @@ export default function ProfileView({
     if (r.ok) await loadPayments();
   }
   async function methodAction(id: string, action: "default" | "delete") {
-    await fetch(
-      `/api/v1/payment-methods/${id}${action === "default" ? "/default" : ""}`,
-      {
-        method: action === "default" ? "PATCH" : "DELETE",
-        credentials: "include",
-      },
-    );
-    await loadPayments();
+    setUpdatingMethodId(id);
+    setPaymentNotice(null);
+    const previousMethods = methods;
+    if (action === "default") setMethods(current => current.map(method => ({ ...method, isDefault: method.id === id })));
+    try {
+      const response = await fetch(
+        `/api/v1/payment-methods/${id}${action === "default" ? "/default" : ""}`,
+        { method: action === "default" ? "PATCH" : "DELETE", credentials: "include" },
+      );
+      const payload = response.status === 204 ? {} : await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "No pudimos actualizar la tarjeta.");
+      await loadPayments();
+      setPaymentNotice({ type: "success", text: action === "default" ? "Esta es ahora tu única tarjeta predeterminada." : "La tarjeta fue eliminada correctamente." });
+    } catch (error) {
+      setMethods(previousMethods);
+      setPaymentNotice({ type: "error", text: error instanceof Error ? error.message : "No pudimos actualizar la tarjeta." });
+    } finally {
+      setUpdatingMethodId(null);
+    }
   }
   const selectedDepartment = departments.find(
     (item) => item.departamento === contact.department,
@@ -556,6 +569,8 @@ export default function ProfileView({
           title="Mis medios de pago"
           description="Administra las tarjetas disponibles para tus pagos dentro de TramIA."
         />
+        <p className="mt-3 text-xs leading-5 text-slate-500">Puedes guardar varias tarjetas, pero solo una será la predeterminada. Tú eliges cuál usar por defecto.</p>
+        <NoticeBox notice={paymentNotice} />
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {methods.map((method) => (
             <article
@@ -573,7 +588,7 @@ export default function ProfileView({
                   {String(method.expiryMonth).padStart(2, "0")}/
                   {method.expiryYear}
                 </span>
-              </div><div className="mt-4 flex gap-2"><button disabled={method.isDefault} onClick={()=>void methodAction(method.id,'default')} className="rounded-lg bg-white/15 px-3 py-1 text-[10px] font-black disabled:opacity-40">Predeterminada</button><button onClick={()=>void methodAction(method.id,'delete')} className="rounded-lg bg-red-500/30 px-3 py-1 text-[10px] font-black"><Trash2 className="mr-1 inline" size={12}/>Eliminar</button></div>
+              </div><div className="mt-4 flex flex-wrap gap-2">{method.isDefault?<span className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/20 px-3 text-[10px] font-black"><CheckCircle2 size={13}/> Tarjeta predeterminada</span>:<button disabled={updatingMethodId!==null} onClick={()=>void methodAction(method.id,'default')} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-white/25 bg-white/15 px-3 text-[10px] font-black transition hover:bg-white/25 disabled:opacity-50"><Star size={13}/> Elegir como predeterminada</button>}<button disabled={updatingMethodId!==null} onClick={()=>void methodAction(method.id,'delete')} className="min-h-8 rounded-lg bg-red-500/30 px-3 text-[10px] font-black disabled:opacity-50"><Trash2 className="mr-1 inline" size={12}/>Eliminar</button></div>
             </article>
           ))}
         </div>
@@ -588,10 +603,6 @@ export default function ProfileView({
             </button>
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-500">
-          Entorno de prueba: no ingreses información financiera real. TramIA no
-          almacena números completos ni códigos de seguridad.
-        </p>
       </section>
       {payments.length > 0 && (
         <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">

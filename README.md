@@ -222,7 +222,7 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 
 TramIA sigue [Versionado Semántico](https://semver.org/lang/es/) y utiliza tags `vMAJOR.MINOR.PATCH`. La versión se obtiene automáticamente desde `package.json` y se muestra discretamente en el footer y en el menú de usuario; no enlaza al repositorio privado.
 
-Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md), [HEALTH.md](docs/HEALTH.md) y [CHANGELOG.md](CHANGELOG.md).
+Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md), [HEALTH.md](docs/HEALTH.md), [HARD_RESET.md](docs/HARD_RESET.md) y [CHANGELOG.md](CHANGELOG.md).
 
 ## Privacidad y seguridad
 
@@ -245,9 +245,9 @@ La aplicación registra eventos de navegación, búsqueda, revisión de trámite
 - [x] Perfil y validación de DNI desde backend.
 - [x] Formulario de contacto persistente y correo de soporte.
 - [x] CI, versionado y releases.
-- [ ] Persistir en Neon el inicio, checklist y avance completo de cada trámite.
-- [ ] Implementar reglas de cancelación y trazabilidad de estados.
-- [ ] Cargar documentos en Netlify Blobs u otro object storage.
+- [x] Persistir en Neon el inicio, checklist y avance completo de cada trámite.
+- [x] Implementar reglas de cancelación y trazabilidad de estados.
+- [x] Cargar documentos en Netlify Blobs u otro object storage.
 - [x] Crear la base protegida del panel administrativo y roles.
 - [x] Implementar CRUD administrativo de categorías y entidades, y listado editorial de trámites.
 - [x] Completar el editor de trámites, versiones, requisitos, pasos y fuentes.
@@ -256,8 +256,9 @@ La aplicación registra eventos de navegación, búsqueda, revisión de trámite
 - [x] Implementar el módulo administrativo de operación, seguimiento y control de excepciones.
 - [x] Implementar perfiles de asesores y asignación administrativa de delegaciones pagadas.
 - [x] Implementar la solicitud de delegación y el pago simulado seguro desde la cuenta del usuario.
-- [ ] Implementar asesores, delegación y pago tokenizado/simulado.
-- [ ] Incorporar alertas persistentes y notificaciones.
+- [x] Incorporar el Hard reset transaccional de interacciones en Administración.
+- [x] Implementar asesores, delegación y pago tokenizado/simulado.
+- [x] Incorporar alertas persistentes y notificaciones.
 - [ ] Sustituir la validación de IA simulada por un proveedor seleccionado.
 - [ ] Añadir pruebas unitarias, de integración y end-to-end.
 - [ ] Completar auditorías de accesibilidad, seguridad y experiencia mobile-first.
