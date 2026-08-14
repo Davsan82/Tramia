@@ -1,4 +1,5 @@
-import { drizzle } from 'drizzle-orm/neon-http';
+import ws from 'ws';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 
 let database: ReturnType<typeof drizzle> | null = null;
 
@@ -10,8 +11,17 @@ export function getDrizzleDatabase() {
   }
 
   if (!database) {
-    database = drizzle(databaseUrl);
+    // El adaptador WebSocket permite las transacciones interactivas que usan
+    // los flujos de trámites, delegaciones y administración.
+    database = drizzle({ connection: databaseUrl, ws });
   }
 
   return database;
+}
+
+export async function closeDrizzleDatabase() {
+  if (!database) return;
+  const current = database;
+  database = null;
+  await current.$client.end();
 }

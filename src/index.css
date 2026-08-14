@@ -90,3 +90,13 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #D1D5DB;
 }
+@keyframes payment-card-processing {
+  0%, 100% { transform: translateX(-10px) rotate(-2deg); }
+  50% { transform: translateX(10px) rotate(2deg); }
+}
+
+@keyframes payment-card-approved {
+  0% { opacity: .35; transform: scale(.82) rotate(-6deg); }
+  70% { transform: scale(1.06) rotate(1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}

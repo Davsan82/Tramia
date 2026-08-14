@@ -21,7 +21,6 @@ import AdminUsersView from "./AdminUsersView";
 import AdminContactView from "./AdminContactView";
 import AdminOperationsView from "./AdminOperationsView";
 import AdminAdvisorsView from "./AdminAdvisorsView";
-import LoginView from "./LoginView";
 import AdminAuditView from "./AdminAuditView";
 import AdminLoginView from "./AdminLoginView";
 import AdminSettingsView from "./AdminSettingsView";
@@ -77,11 +76,8 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
     | "finance"
   >(() => {
     const requested = new URLSearchParams(location.search).get("module");
-    return requested === "settings"
-      ? "settings"
-      : requested === "finance"
-        ? "finance"
-        : "dashboard";
+    const allowed = ["dashboard", "catalog", "users", "contact", "operations", "advisors", "audit", "settings", "finance"] as const;
+    return allowed.includes(requested as typeof allowed[number]) ? requested as typeof allowed[number] : "dashboard";
   });
   const load = async () => {
     setLoading(true);
@@ -117,46 +113,6 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
   }, [module]);
   if (authRequired)
     return <AdminLoginView onSuccess={() => void load()} onExit={onExit} />;
-  if (authRequired)
-    return (
-      <div className="min-h-screen bg-slate-100 text-slate-950">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex min-h-17 max-w-[1500px] items-center gap-4 px-4 sm:px-6">
-            <TramIALogo
-              iconSize={31}
-              textSize="text-xl"
-              variant="light"
-              onClick={onExit}
-            />
-            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.14em] text-blue-700">
-              Administración
-            </span>
-            <button
-              onClick={onExit}
-              className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-600"
-            >
-              <ArrowLeft size={15} />
-              Volver a TramIA
-            </button>
-          </div>
-        </header>
-        <main className="mx-auto max-w-5xl p-4 py-8 sm:p-8">
-          <div className="mb-6 text-center">
-            <p className="text-xs font-black uppercase tracking-[.18em] text-blue-600">
-              Acceso protegido
-            </p>
-            <h1 className="mt-2 text-3xl font-black">
-              Inicia sesión como administrador
-            </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Usa tu cuenta TramIA. Si tiene el rol correspondiente, entrarás
-              directamente al panel.
-            </p>
-          </div>
-          <LoginView initialMode="login" onAuthSuccess={() => void load()} />
-        </main>
-      </div>
-    );
   if (module !== "dashboard")
     return (
       <div className="min-h-screen bg-slate-100 text-slate-950">
@@ -397,11 +353,11 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
                   <div className="rounded-3xl bg-slate-950 p-5 text-white">
                     <Sparkles className="text-cyan-300" />
                     <h3 className="mt-3 font-black">
-                      Base administrativa lista
+                      Centro de control operativo
                     </h3>
                     <p className="mt-2 text-xs leading-5 text-slate-300">
-                      El siguiente bloque habilitará el CRUD de categorías,
-                      entidades y trámites.
+                      Administra catálogo, usuarios, casos, asesores, consultas,
+                      configuración y reportes desde módulos conectados a Neon.
                     </p>
                     <AppVersion className="mt-4 block text-[10px] text-slate-500" />
                   </div>

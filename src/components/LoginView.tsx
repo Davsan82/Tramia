@@ -5,9 +5,9 @@ import TramIALogo from './TramIALogo';
 import { trackEvent } from '../utils/analytics';
 
 type Mode = 'login' | 'signup' | 'forgot';
-interface LoginViewProps { onAuthSuccess: (profile: UserProfile) => void; onClose?: () => void; initialMode?: Mode; }
+interface LoginViewProps { onAuthSuccess: (profile: UserProfile) => void; onClose?: () => void; initialMode?: Mode; adminMode?: boolean; }
 
-export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login' }: LoginViewProps) {
+export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login', adminMode = false }: LoginViewProps) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -54,9 +54,9 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
         <div className={`w-full ${isSignup ? '' : 'my-auto'}`}>
         <div className="mb-7 md:hidden"><TramIALogo iconSize={34} textSize="text-2xl" variant="light" /></div>
         {mode === 'forgot' && <button type="button" onClick={() => { setMode('login'); setMessage(null); }} className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700"><ArrowLeft size={16} /> Regresar al inicio de sesión</button>}
-        <p className="text-xs font-black uppercase tracking-[.16em] text-blue-600">{mode === 'login' ? 'Bienvenido de nuevo' : mode === 'signup' ? 'Empieza gratis' : 'Recupera tu acceso'}</p>
-        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">{mode === 'login' ? 'Inicia sesión' : mode === 'signup' ? 'Crea tu cuenta' : '¿Olvidaste tu contraseña?'}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">{mode === 'login' ? 'Continúa tus trámites desde donde los dejaste.' : mode === 'signup' ? 'Crea tu perfil ciudadano; podrás verificar el correo después de ingresar.' : 'Te enviaremos un enlace seguro si el correo está registrado.'}</p>
+        <p className={`text-xs font-black uppercase tracking-[.16em] ${adminMode ? 'text-violet-700' : 'text-blue-600'}`}>{adminMode ? 'Acceso administrativo' : mode === 'login' ? 'Bienvenido de nuevo' : mode === 'signup' ? 'Empieza gratis' : 'Recupera tu acceso'}</p>
+        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">{adminMode ? 'Ingresa al centro de control' : mode === 'login' ? 'Inicia sesión' : mode === 'signup' ? 'Crea tu cuenta' : '¿Olvidaste tu contraseña?'}</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">{adminMode ? 'Usa una cuenta con rol de administrador. El acceso queda registrado.' : mode === 'login' ? 'Continúa tus trámites desde donde los dejaste.' : mode === 'signup' ? 'Crea tu perfil ciudadano; podrás verificar el correo después de ingresar.' : 'Te enviaremos un enlace seguro si el correo está registrado.'}</p>
 
         <form onSubmit={submit} className={`${isSignup ? 'mt-6' : 'mt-5'} space-y-4`}>
           {isSignup && <Field label="Nombre de usuario" icon={AtSign}><input value={form.username} onChange={update('username')} required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" autoComplete="username" placeholder="ej. david82" className="field-input" /></Field>}
@@ -65,9 +65,9 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
           {isSignup && <Field label="Celular" icon={Phone}><input type="tel" value={form.phone} onChange={update('phone')} required placeholder="+51 999 999 999" className="field-input" /></Field>}
           {isSignup && <div className="flex gap-3 rounded-2xl bg-blue-50 p-4 text-xs leading-5 text-blue-900"><ShieldCheck size={19} className="shrink-0 text-blue-600" /><p>Podrás ingresar inmediatamente. Te mostraremos un recordatorio hasta que confirmes el enlace enviado a tu correo.</p></div>}
           {message && <div role="alert" className={`rounded-xl border p-3 text-sm font-semibold ${message.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{message.text}</div>}
-          <button disabled={submitting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-60">{submitting ? 'Procesando…' : mode === 'login' ? 'Ingresar a TramIA' : mode === 'signup' ? 'Crear cuenta y continuar' : 'Enviar enlace seguro'} {!submitting && <ArrowRight size={17} />}</button>
+          <button disabled={submitting} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold text-white shadow-lg transition disabled:opacity-60 ${adminMode ? 'bg-violet-700 shadow-violet-700/20 hover:bg-violet-800' : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'}`}>{submitting ? 'Procesando…' : adminMode ? 'Ingresar al panel' : mode === 'login' ? 'Ingresar a TramIA' : mode === 'signup' ? 'Crear cuenta y continuar' : 'Enviar enlace seguro'} {!submitting && <ArrowRight size={17} />}</button>
         </form>
-        {mode !== 'forgot' && <p className="mt-5 text-center text-sm text-slate-500">{isSignup ? '¿Ya tienes una cuenta?' : '¿Todavía no tienes una cuenta?'} <button type="button" onClick={() => { setMode(isSignup ? 'login' : 'signup'); setMessage(null); }} className="font-extrabold text-blue-700 hover:underline">{isSignup ? 'Inicia sesión' : 'Créala gratis'}</button></p>}
+        {!adminMode && mode !== 'forgot' && <p className="mt-5 text-center text-sm text-slate-500">{isSignup ? '¿Ya tienes una cuenta?' : '¿Todavía no tienes una cuenta?'} <button type="button" onClick={() => { setMode(isSignup ? 'login' : 'signup'); setMessage(null); }} className="font-extrabold text-blue-700 hover:underline">{isSignup ? 'Inicia sesión' : 'Créala gratis'}</button></p>}
         </div>
       </section>
     </div>

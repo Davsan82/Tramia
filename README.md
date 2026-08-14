@@ -23,8 +23,11 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Perfil persistente y validación de DNI mediante PeruDevs desde el servidor.
 - Departamentos, provincias y distritos en selectores dependientes.
 - Vista de trámites del usuario e historial consultados desde Neon.
+- Checklist estrictamente secuencial con porcentaje, siguiente paso, confirmaciones fechadas y evidencia visualizable.
+- Delegación con selección de asesor, medios guardados y pago de prueba animado.
 - Formulario de contacto almacenado en Neon y enviado por SMTP.
 - API Express, especificación OpenAPI y Swagger en `/api/docs`.
+- Health check de PostgreSQL, configuración crítica e integraciones en `/api/health`.
 - Eventos personalizados para Google Analytics 4.
 - Versionado Semántico, CI y releases automatizados con GitHub Actions.
 
@@ -38,10 +41,11 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Inicio, checklist, avance, documentos y conversación de cada trámite mediante API y Neon.
 - Documentos binarios en Netlify Blobs; PostgreSQL conserva únicamente metadatos y claves.
 - Delegaciones, asignaciones y reasignaciones persistentes y auditadas.
+- El asesor elegido queda asignado automáticamente luego del pago ficticio aprobado.
 
 ### Demostrativo o pendiente
 
-> Actualización 0.5.0: el inicio, checklist, acciones y avance ya se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago simulado, conversación y seguimiento.
+> Actualización 0.6.0: el inicio, checklist secuencial, acciones fechadas y avance se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago de prueba, conversación y seguimiento.
 
 Los pagos y devoluciones continúan siendo exclusivamente simulados: no existe movimiento financiero real ni se almacenan PAN o CVV.
 
@@ -65,12 +69,14 @@ TramIA utiliza una aplicación web y API integradas en el mismo repositorio:
 ```mermaid
 flowchart LR
     UI["React + Vite"] --> API["Express API"]
-    API --> DB["Neon PostgreSQL"]
+    API --> DB["Neon PostgreSQL · WebSocket transaccional"]
     API --> MAIL["Gmail SMTP"]
     API --> DNI["PeruDevs"]
     NETLIFY["Netlify"] --> UI
     NETLIFY --> API
 ```
+
+La API usa `drizzle-orm/neon-serverless` con WebSocket porque los flujos de inicio de trámite, avance, delegación y administración requieren transacciones interactivas. En Netlify, el pool se crea por invocación y se cierra al finalizar la función.
 
 ```text
 tramia-v5.1/
@@ -145,13 +151,23 @@ Inicia la aplicación:
 npm run dev
 ```
 
+### Asesores ficticios para pruebas
+
+Para probar la selección y asignación de especialistas en una base de desarrollo:
+
+```bash
+npm run demo:advisors
+```
+
+El comando es idempotente, crea tres perfiles identificados como demo y está bloqueado cuando `NODE_ENV=production`. La clave temporal común es solo para desarrollo y no debe publicarse ni reutilizarse en una cuenta real.
+
 En Windows/PowerShell también puedes usar:
 
 ```powershell
 npm.cmd run dev
 ```
 
-Abre `http://localhost:3000`. La salud del backend se consulta en `/api/health` y Swagger en `/api/docs`.
+Abre `http://localhost:3000`. La salud del backend se consulta en `/api/health` y Swagger en `/api/docs`. El health check valida la conexión con PostgreSQL y la presencia/formato de las variables críticas, de correo e identidad sin mostrar sus valores. Devuelve `503` cuando falla una dependencia crítica y `200` con estado `degraded` cuando solo falta una integración opcional.
 
 ## Base de datos
 
@@ -206,7 +222,7 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 
 TramIA sigue [Versionado Semántico](https://semver.org/lang/es/) y utiliza tags `vMAJOR.MINOR.PATCH`. La versión se obtiene automáticamente desde `package.json` y se muestra discretamente en el footer y en el menú de usuario; no enlaza al repositorio privado.
 
-Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md) y [CHANGELOG.md](CHANGELOG.md).
+Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md), [HEALTH.md](docs/HEALTH.md) y [CHANGELOG.md](CHANGELOG.md).
 
 ## Privacidad y seguridad
 

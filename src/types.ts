@@ -38,6 +38,7 @@ export interface Requirement {
   isValidated: boolean; // bandera de validación inteligente
   isRequired: boolean; // obligatoriedad
   requiresEvidence?: boolean; // Indica si requiere carga de evidencia
+  userProcedureRequirementId?: string;
 }
 
 export interface Advisor {
@@ -52,6 +53,7 @@ export interface Advisor {
 
 export interface TramiteOption {
   id: string;
+  databaseId?: string;
   title: string;
   category: 'Identidad' | 'Transporte' | 'Negocios' | 'Finanzas' | 'Familia' | 'Viajes' | string;
   description: string;

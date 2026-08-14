@@ -33,7 +33,7 @@ export const openApiDocument = {
     '/health': {
       get: {
         tags: ['Sistema'],
-        summary: 'Comprobar disponibilidad del servicio y la base de datos',
+          summary: 'Comprobar disponibilidad, base de datos y variables de entorno',
         responses: {
           '200': { description: 'Servicio disponible' },
           '503': { description: 'Servicio degradado' },

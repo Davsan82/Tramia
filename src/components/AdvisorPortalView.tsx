@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Save,
   Star,
+  Upload,
 } from "lucide-react";
 import TramIALogo from "./TramIALogo";
 import CaseDocuments from "./CaseDocuments";
@@ -55,7 +56,8 @@ const labels: Record<string, string> = {
 export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
   const [profile, setProfile] = useState<any>(null),
     [editing, setEditing] = useState(false),
-    [profileForm, setProfileForm] = useState<any>({});
+    [profileForm, setProfileForm] = useState<any>({}),
+    [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [cases, setCases] = useState<CaseItem[]>([]),
     [detail, setDetail] = useState<Detail | null>(null),
     [loading, setLoading] = useState(true),
@@ -104,14 +106,48 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
       setEditing(false);
     } else setError(p.message || "No pudimos guardar el perfil.");
   };
+  const uploadAvatar = async (file?: File) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch("/api/v1/profile/avatar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mimeType: file.type, contentBase64 }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "No pudimos subir la foto.");
+      const avatarUrl = `${payload.avatarUrl}?v=${Date.now()}`;
+      setProfile((current: any) => ({ ...current, avatarUrl }));
+      setProfileForm((current: any) => ({ ...current, avatarUrl }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos subir la foto.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
   const advisorProfile = profile ? (
     <section className="mb-5 rounded-3xl border border-violet-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <img
-          src={profile.avatarUrl || "/assets/mascot/tramia-bot-reading.png"}
-          alt="Foto del asesor"
-          className="size-20 rounded-2xl bg-violet-50 object-cover"
-        />
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <img
+            src={profile.avatarUrl || "/assets/mascot/tramia-bot-reading.png"}
+            alt="Foto del asesor"
+            className="size-20 rounded-2xl bg-violet-50 object-cover"
+          />
+          <label className="cursor-pointer rounded-lg bg-violet-100 px-2 py-1.5 text-[10px] font-black text-violet-800">
+            <Upload className="mr-1 inline" size={12} />
+            {uploadingAvatar ? "Subiendo…" : "Cambiar foto"}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} />
+          </label>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-black">{profile.publicName}</h2>

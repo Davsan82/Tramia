@@ -28,10 +28,18 @@ import {
   ExternalLink,
   Info,
   MousePointerClick,
+  ClipboardList,
+  CircleDashed,
+  CalendarCheck2,
+  X,
+  Image as ImageIcon,
+  Eye,
 } from "lucide-react";
 import { Procedure, Requirement, Step } from "../types";
 import { GESTORES_VERIFICADOS } from "../data";
 import TramIABot from "./TramIABot";
+import CaseDocuments from "./CaseDocuments";
+import CaseMessages from "./CaseMessages";
 import DocumentValidationModal, {
   ValidationResult,
 } from "./DocumentValidationModal";
@@ -347,6 +355,12 @@ const getComplexityBadgeStyle = (complexity: string) => {
   }
 };
 
+const formatRecordedDate = (value?: string) => {
+  if (!value) return "Fecha registrada";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+};
+
 /**
  * Determinación precisa de si un paso requiere carga de evidencia (foto/documento) o si es una confirmación manual
  */
@@ -463,14 +477,15 @@ export default function WorkspaceView({
   const [caseId, setCaseId] = useState<string>("");
   const [actionStep, setActionStep] = useState<Step | null>(null);
   const [actionData, setActionData] = useState<Record<string, string>>({});
+  const today = () => new Date().toISOString().slice(0, 10);
   useEffect(() => {
-    fetch(`/api/v1/my-procedures/by-procedure/${procedure.id}/workspace`, {
+    fetch(`/api/v1/my-procedures/by-procedure/${procedure.databaseId || procedure.id}/workspace`, {
       credentials: "include",
     })
       .then((r) => r.json())
       .then((p) => setCaseId(p.instance?.id || ""))
       .catch(() => {});
-  }, [procedure.id]);
+  }, [procedure.databaseId, procedure.id]);
   const completeAction = async () => {
     if (!actionStep || !caseId) return;
     const response = await fetch(
@@ -488,6 +503,11 @@ export default function WorkspaceView({
       return;
     }
     setCompletedStepIds((value) => [...new Set([...value, actionStep.id])]);
+    setCompletedStepDetails((value) => ({ ...value, [actionStep.id]: { ...actionData, completedAt: new Date().toISOString() } }));
+    setRequirements((items) => items.map((item) => item.requiredForStepId === actionStep.id ? { ...item, status: "Aprobado", isValidated: true } : item));
+    const currentIndex = procedure.steps.findIndex((item) => item.id === actionStep.id);
+    const nextStep = procedure.steps.slice(currentIndex + 1).find((item) => !completedStepIds.includes(item.id));
+    if (nextStep) setExpandedStepId(nextStep.id);
     setActionStep(null);
     setActionData({});
   };
@@ -556,6 +576,27 @@ export default function WorkspaceView({
     });
     return initialCompleted;
   });
+  const [completedStepDetails, setCompletedStepDetails] = useState<Record<string, { date?: string; completedAt?: string; fileName?: string; documentId?: string }>>({});
+
+  useEffect(() => {
+    if (!caseId) return;
+    fetch(`/api/v1/my-procedures/by-procedure/${procedure.databaseId || procedure.id}/workspace`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("workspace_unavailable");
+        return response.json();
+      })
+      .then((payload) => {
+        setCompletedStepIds(Array.isArray(payload.completedStepIds) ? payload.completedStepIds : []);
+        setCompletedStepDetails(Object.fromEntries((payload.steps || []).filter((item: any) => item.status === "completed").map((item: any) => [item.procedureStepId, { ...(item.completionData || {}), completedAt: item.completedAt }])));
+        const requirementState = new Map((payload.requirements || []).map((item: any) => [item.requirementId, item]));
+        const labels: Record<string, Requirement["status"]> = { approved: "Aprobado", rejected: "Corregir", uploaded: "Validando", validating: "Validando", pending: "Pendiente" };
+        setRequirements((items) => items.map((item) => {
+          const persisted: any = requirementState.get(item.id);
+          return persisted ? { ...item, userProcedureRequirementId: persisted.instanceId, status: labels[persisted.status] || "Pendiente", isValidated: persisted.status === "approved" } : item;
+        }));
+      })
+      .catch(() => {});
+  }, [caseId, procedure.databaseId, procedure.id]);
 
   // Active expanded step state (accordion functionality)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(() => {
@@ -575,65 +616,79 @@ export default function WorkspaceView({
   // File upload trigger refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingReqId, setUploadingReqId] = useState<string | null>(null);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  const closeUploadModal = () => {
+    if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    setUploadPreviewUrl("");
+    setSelectedUploadFile(null);
+    setUploadingReqId(null);
+    setIsDraggingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const selectUploadFile = (file?: File) => {
+    if (!file) return;
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
+      alert("Selecciona un archivo PDF, JPG o PNG.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert("El archivo debe pesar como máximo 8 MB.");
+      return;
+    }
+    if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    setSelectedUploadFile(file);
+    setUploadPreviewUrl(URL.createObjectURL(file));
+  };
 
   const handleTriggerUpload = (reqId: string) => {
     setUploadingReqId(reqId);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-      fileInputRef.current.click();
-    }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && uploadingReqId) {
-      runAISimulator(uploadingReqId, "good", file.name);
+  const uploadSelectedEvidence = async () => {
+    const file = selectedUploadFile;
+    if (!file || !uploadingReqId || !caseId) return;
+    const requirement = requirements.find((item) => item.id === uploadingReqId || item.requiredForStepId === uploadingReqId);
+    const targetStep = procedure.steps.find((item) => item.id === requirement?.requiredForStepId || item.id === uploadingReqId);
+    if (!requirement || !targetStep) return;
+    setIsScanning(true);
+    setScanStep("Guardando el documento de forma segura…");
+    try {
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+        reader.onerror = () => reject(new Error("No pudimos leer el archivo."));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch(`/api/v1/procedure-cases/${caseId}/documents`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, mimeType: file.type, contentBase64, userProcedureRequirementId: requirement.userProcedureRequirementId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "No pudimos guardar el documento.");
+      setRequirements((items) => items.map((item) => item.id === requirement.id ? { ...item, status: "Validando", uploadedFileName: file.name, feedbackMessage: "Documento guardado. Confirma la etapa para continuar." } : item));
+      setActionData({ documentId: payload.data.id, fileName: file.name, mimeType: file.type, date: today() });
+      setActionStep(targetStep);
+      closeUploadModal();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No pudimos guardar el documento.");
+    } finally {
+      setIsScanning(false);
     }
   };
 
   // Toggle manual confirmation checkbox
   const toggleManualStep = (stepId: string) => {
     const target = procedure.steps.find((step) => step.id === stepId);
-    if (target && !completedStepIds.includes(stepId)) {
+    if (completedStepIds.includes(stepId)) return;
+    if (target) {
+      setActionData({ date: today() });
       setActionStep(target);
       return;
     }
-    setCompletedStepIds((prev) => {
-      let next: string[];
-      if (prev.includes(stepId)) {
-        next = prev.filter((id) => id !== stepId);
-      } else {
-        next = [...prev, stepId];
-        // Auto advance expand to next uncompleted step
-        const currentIdx = procedure.steps.findIndex((s) => s.id === stepId);
-        const nextStep = procedure.steps
-          .slice(currentIdx + 1)
-          .find((s) => !next.includes(s.id));
-        if (nextStep) {
-          setExpandedStepId(nextStep.id);
-        }
-      }
-
-      // Sync requirements
-      setRequirements((prevReqs) =>
-        prevReqs.map((r) => {
-          if (r.requiredForStepId === stepId) {
-            const isNowCompleted = next.includes(stepId);
-            return {
-              ...r,
-              status: isNowCompleted ? "Aprobado" : "Pendiente",
-              uploadedFileName: isNowCompleted
-                ? r.uploadedFileName || "Confirmado manualmente"
-                : undefined,
-              isValidated: isNowCompleted,
-            };
-          }
-          return r;
-        }),
-      );
-
-      return next;
-    });
   };
 
   // Scanning & Simulator states
@@ -722,6 +777,11 @@ export default function WorkspaceView({
     const count = completedStepIds.length;
     return Math.round((count / totalSteps) * 100);
   }, [completedStepIds, totalSteps]);
+
+  const nextPendingStep = useMemo(
+    () => procedure.steps.find((step) => !completedStepIds.includes(step.id)),
+    [procedure.steps, completedStepIds],
+  );
 
   const isLastStepCompleted = useMemo(() => {
     return lastStep ? completedStepIds.includes(lastStep.id) : false;
@@ -818,7 +878,7 @@ export default function WorkspaceView({
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileChange}
+        onChange={(event) => selectUploadFile(event.target.files?.[0])}
         className="hidden"
         accept="image/*,.pdf"
       />
@@ -963,6 +1023,20 @@ export default function WorkspaceView({
             </div>
           </div>
         </div>
+        {!isDelegated && (
+          <div className="rounded-2xl border border-blue-100 bg-[linear-gradient(110deg,#f8fbff,#eef7ff)] p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">Avance del trámite</p>
+                <p className="mt-1 flex items-center gap-2 text-sm font-black text-slate-900">
+                  {nextPendingStep ? <><CircleDashed size={17} className="shrink-0 text-blue-600"/><span className="truncate">Siguiente paso: {nextPendingStep.title}</span></> : <><CheckCircle2 size={17} className="text-emerald-600"/>Todos los pasos están completos</>}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-4"><span className="text-xs font-bold text-slate-500">{completedStepIds.length} de {totalSteps}</span><strong className="text-2xl font-black text-blue-700">{completionPercentageA}%</strong></div>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-blue-100"><div className={`h-full rounded-full transition-all duration-500 ${completionPercentageA === 100 ? "bg-emerald-500" : "bg-[linear-gradient(90deg,#2563eb,#06b6d4)]"}`} style={{width:`${completionPercentageA}%`}}/></div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -970,98 +1044,43 @@ export default function WorkspaceView({
       {/* ========================================================================= */}
       {!isDelegated ? (
         <div className="space-y-6">
-          {/* CHECKLIST HYBRID PROGRESS BANNER */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <CheckSquare size={18} className="text-blue-600" />
-                  <h2 className="text-lg font-black text-slate-900">
-                    Checklist de Autogestión Paso a Paso
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-500 font-medium">
-                  Completa cada acción según las indicaciones para avanzar de
-                  forma autónoma.
-                </p>
-              </div>
-
-              {/* Progress metric box */}
-              <div className="bg-blue-50/80 border border-blue-100/80 px-4 py-2.5 rounded-2xl text-right shrink-0">
-                <p className="text-[10px] font-black uppercase tracking-wider text-blue-600 font-mono">
-                  Avance en Tiempo Real
-                </p>
-                <p className="text-lg font-black text-blue-950 font-mono">
-                  {completedStepIds.length} de {procedure.steps.length}{" "}
-                  Actividades • {completionPercentageA}%
-                </p>
-                <p
-                  className={`text-[11px] font-bold font-sans mt-0.5 ${
-                    isAllStepsCompleted
-                      ? "text-emerald-700"
-                      : isPriorStepsCompleted
-                        ? "text-amber-700"
-                        : "text-blue-700"
-                  }`}
-                >
-                  {isAllStepsCompleted
-                    ? "Estado: Trámite finalizado"
-                    : isPriorStepsCompleted
-                      ? "Estado: Pendiente de recoger documento"
-                      : "Estado: En curso"}
-                </p>
-              </div>
-            </div>
-
-            {/* Dynamic Real-time Progress Bar */}
-            <div className="space-y-2">
-              <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-200">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 shadow-xs ${
-                    isAllStepsCompleted
-                      ? "bg-emerald-600"
-                      : isPriorStepsCompleted
-                        ? "bg-amber-500"
-                        : "bg-blue-600"
-                  }`}
-                  style={{ width: `${completionPercentageA}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Legend showing visual difference between manual and evidence steps (Rules 4 & 5) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="p-3.5 bg-sky-50/60 border border-sky-100 rounded-2xl flex items-center gap-3">
-                <span className="p-2 bg-sky-100 text-sky-800 rounded-xl shrink-0">
-                  <CheckSquare size={16} />
+          {/* TramIA route summary */}
+          <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#082657_0%,#0d4fc4_55%,#13b5d1_125%)] p-5 text-white shadow-[0_20px_55px_-28px_rgba(8,38,87,.65)] sm:p-7">
+            <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,white_1px,transparent_1px)] [background-size:22px_22px]" />
+            <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em] text-cyan-100">
+                  <ClipboardList size={14} /> Tu ruta TramIA
                 </span>
-                <div>
-                  <p className="text-xs font-bold text-sky-950">
-                    Acciones del Usuario (Confirmación Manual)
-                  </p>
-                  <p className="text-[11px] text-sky-800/90 leading-tight">
-                    Pagos, formularios web, citas o recojos. Marca el checkbox
-                    cuando lo hayas realizado.
-                  </p>
+                <h2 className="mt-4 text-2xl font-black sm:text-3xl">Avanza paso a paso, sin perderte</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
+                  Completa una actividad a la vez. Te indicaremos qué hacer, qué documento presentar y cuál es tu siguiente paso.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-bold text-blue-50">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CheckSquare size={14}/> Confirmaciones guiadas</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><FileUp size={14}/> Archivos y evidencias</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CalendarCheck2 size={14}/> Fechas y alertas</span>
                 </div>
               </div>
 
-              <div className="p-3.5 bg-purple-50/60 border border-purple-100 rounded-2xl flex items-center gap-3">
-                <span className="p-2 bg-purple-100 text-purple-800 rounded-xl shrink-0">
-                  <FileUp size={16} />
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-purple-950">
-                    Evidencias (Validación por Archivo)
-                  </p>
-                  <p className="text-[11px] text-purple-800/90 leading-tight">
-                    Fotografías o certificados clave. El sistema lo completa
-                    automáticamente al subir el archivo.
-                  </p>
+              <div className="rounded-3xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:p-5">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-100">Progreso actual</p>
+                    <p className="mt-1 text-sm font-bold text-white">{completedStepIds.length} de {procedure.steps.length} pasos</p>
+                  </div>
+                  <strong className="text-3xl font-black">{completionPercentageA}%</strong>
                 </div>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-950/25 p-0.5">
+                  <div className={`h-full rounded-full transition-all duration-500 ${isAllStepsCompleted ? "bg-emerald-300" : isPriorStepsCompleted ? "bg-amber-300" : "bg-cyan-300"}`} style={{ width: `${completionPercentageA}%` }} />
+                </div>
+                <p className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-50">
+                  {isAllStepsCompleted ? <CheckCircle2 size={16} className="text-emerald-300"/> : <CircleDashed size={16} className="text-cyan-300"/>}
+                  {isAllStepsCompleted ? "Trámite finalizado" : isPriorStepsCompleted ? "Solo falta el paso final" : "Ruta en curso"}
+                </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* INTERMEDIATE BANNER: ALL REQUIREMENTS COMPLETED EXCEPT FINAL PICKUP */}
           {isPriorStepsCompleted && !isAllStepsCompleted && (
@@ -1135,8 +1154,17 @@ export default function WorkspaceView({
             </div>
           )}
 
-          {/* COMPACT ACCORDION CHECKLIST ITEM LIST */}
-          <div className="space-y-2">
+          {/* Guided TramIA timeline */}
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-col gap-2 border-b border-slate-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">Checklist guiado</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Tu ruta de actividades</h2>
+                <p className="mt-1 text-sm text-slate-500">Abre el paso actual para revisar las indicaciones y completar su acción.</p>
+              </div>
+              <span className="text-xs font-bold text-slate-500">{procedure.steps.length - completedStepIds.length} pasos pendientes</span>
+            </div>
+            <div className="relative space-y-3 before:absolute before:bottom-8 before:left-[22px] before:top-8 before:w-0.5 before:bg-gradient-to-b before:from-blue-300 before:via-blue-100 before:to-slate-100 sm:before:left-[27px]">
             {procedure.steps.map((step, idx) => {
               const isEvidenceStep = isStepEvidenceRequired(
                 step,
@@ -1144,7 +1172,10 @@ export default function WorkspaceView({
                 requirements,
               );
               const isStepDone = completedStepIds.includes(step.id);
+              const isCurrentStep = !isStepDone && procedure.steps.findIndex((item) => !completedStepIds.includes(item.id)) === idx;
+              const isLockedStep = !isStepDone && !isCurrentStep;
               const isExpanded = expandedStepId === step.id;
+              const completionDetail = completedStepDetails[step.id];
               const stepReq =
                 requirements.find((r) => r.requiredForStepId === step.id) ||
                 requirements[0];
@@ -1160,75 +1191,72 @@ export default function WorkspaceView({
               );
 
               return (
-                <div
+                <article
                   key={step.id}
-                  className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                  className={`relative ml-12 rounded-2xl border transition-all duration-200 sm:ml-16 ${
                     isStepDone
-                      ? "bg-emerald-50/20 border-emerald-200/70"
-                      : isExpanded
-                        ? "bg-white border-blue-500 shadow-2xs ring-1 ring-blue-500/10"
-                        : "bg-white border-gray-200 hover:border-gray-300"
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : isLockedStep
+                        ? "border-slate-200 bg-slate-50/80 opacity-75"
+                        : isExpanded || isCurrentStep
+                        ? "border-blue-300 bg-[linear-gradient(135deg,#ffffff_40%,#eff8ff)] shadow-[0_14px_35px_-25px_rgba(37,99,235,.8)] ring-1 ring-blue-100"
+                        : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
                   }`}
                 >
+                  <span className={`absolute -left-[49px] top-4 z-10 grid size-10 place-items-center rounded-full border-4 border-white text-xs font-black shadow-sm sm:-left-[65px] sm:size-12 ${isStepDone ? "bg-emerald-500 text-white" : isCurrentStep ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {isStepDone ? <Check size={18} strokeWidth={3}/> : idx + 1}
+                  </span>
                   {/* Step Header (Clickable Accordion Row) */}
                   <div
-                    onClick={() => toggleStepExpand(step.id)}
-                    className="p-2.5 sm:p-3 flex items-center justify-between gap-3 cursor-pointer select-none"
+                    onClick={() => { if (!isLockedStep) toggleStepExpand(step.id); }}
+                    className={`flex select-none items-start justify-between gap-3 p-4 sm:items-center sm:p-5 ${isLockedStep ? "cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Step Number Badge */}
-                      <div
-                        className={`w-5.5 h-5.5 rounded-md flex items-center justify-center text-[10px] font-black font-mono shrink-0 ${
-                          isStepDone
-                            ? "bg-emerald-600 text-white"
-                            : isExpanded
-                              ? "bg-blue-600 text-white"
-                              : "bg-slate-900 text-white"
-                        }`}
-                      >
-                        {isStepDone ? "✓" : idx + 1}
-                      </div>
-
+                    <div className="min-w-0">
                       {/* Step Title & Type Badge */}
-                      <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <h3
-                          className={`text-xs sm:text-sm font-extrabold truncate ${isStepDone ? "text-slate-500 line-through" : "text-slate-900"}`}
+                          className={`text-sm font-black sm:text-base ${isStepDone ? "text-slate-500" : "text-slate-950"}`}
                         >
                           {step.title}
                         </h3>
 
-                        {isEvidenceStep ? (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-50 text-purple-700 border border-purple-200/80 inline-flex items-center gap-0.5 shrink-0">
+                        {isLockedStep ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-slate-500"><Lock size={10}/> Bloqueado</span>
+                        ) : isEvidenceStep ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-violet-700">
                             <FileUp size={10} className="text-purple-600" />
                             Evidencia
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-sky-50 text-sky-700 border border-sky-200/80 inline-flex items-center gap-0.5 shrink-0">
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-cyan-700">
                             <CheckSquare size={10} className="text-sky-600" />
-                            Manual
+                            Confirmación
                           </span>
                         )}
                       </div>
+                      {isStepDone && <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700"><CalendarCheck2 size={13}/> Realizado el {formatRecordedDate(completionDetail?.date || completionDetail?.completedAt)}</p>}
                     </div>
 
                     {/* Right side: Status badge & Chevron */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                       {isStepDone ? (
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-md font-mono">
-                          Completado ✓
+                        <span className="hidden rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black text-emerald-800 sm:inline-flex">
+                          Completado
                         </span>
+                      ) : isLockedStep ? (
+                        <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-500 sm:inline-flex">Completa el paso anterior</span>
                       ) : isExpanded ? (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black rounded-md font-mono">
+                        <span className="hidden rounded-full bg-blue-100 px-3 py-1 text-[10px] font-black text-blue-800 sm:inline-flex">
                           En curso
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md font-mono">
+                        <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-600 sm:inline-flex">
                           Pendiente
                         </span>
                       )}
 
-                      <div className="text-slate-400 p-0.5">
-                        {isExpanded ? (
+                      <div className={`grid size-9 place-items-center rounded-full ${isExpanded ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                        {isLockedStep ? <Lock size={14}/> : isExpanded ? (
                           <ChevronUp size={14} />
                         ) : (
                           <ChevronDown size={14} />
@@ -1238,21 +1266,24 @@ export default function WorkspaceView({
                   </div>
 
                   {/* Step Expanded Content (Details on Demand) */}
-                  {isExpanded && (
-                    <div className="px-3 pb-3 pt-1 border-t border-gray-100/80 space-y-2.5 animate-fadeIn">
+                  {isExpanded && !isLockedStep && (
+                  <div className="animate-fadeIn space-y-4 border-t border-blue-100/80 bg-white/70 px-4 pb-5 pt-4 sm:px-5">
                       {/* Instruction text */}
-                      <p className="text-[11px] sm:text-xs text-slate-600 leading-snug font-medium pl-8">
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Qué debes hacer</p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
                         {step.description}
-                      </p>
+                        </p>
+                      </div>
 
                       {/* Direct Link to Official Portal if available */}
                       {(paymentInfo || officialUrl) && !isStepDone && (
-                        <div className="pl-8">
+                        <div>
                           <a
                             href={paymentInfo ? paymentInfo.url : officialUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-md border border-gray-200 transition-all cursor-pointer shadow-2xs"
+                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"
                           >
                             <Globe size={12} className="text-blue-600" />
                             <span>
@@ -1269,12 +1300,12 @@ export default function WorkspaceView({
                       )}
 
                       {/* Action Area (Compact Upload zone or Manual Check) */}
-                      <div className="pl-8">
+                      <div>
                         {isEvidenceStep ? (
                           <div className="mt-1">
                             {!isStepDone ||
                             (stepReq && stepReq.status === "Corregir") ? (
-                              <div className="p-2.5 bg-purple-50/40 border border-purple-200/80 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-2">
+                              <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4 sm:flex-row sm:items-center">
                                 <div className="flex items-center gap-2 text-purple-950 font-bold text-xs">
                                   <UploadCloud
                                     size={15}
@@ -1308,7 +1339,7 @@ export default function WorkspaceView({
                                           stepReq?.id || step.id,
                                         );
                                       }}
-                                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-violet-700"
                                     >
                                       <UploadCloud size={13} />
                                       <span>Subir y validar</span>
@@ -1317,7 +1348,7 @@ export default function WorkspaceView({
                                 )}
                               </div>
                             ) : (
-                              <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <CheckCircle2
                                     size={15}
@@ -1336,7 +1367,7 @@ export default function WorkspaceView({
                                     )}
                                   </div>
                                 </div>
-                                <button
+                                {!isStepDone && <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleTriggerUpload(stepReq?.id || step.id);
@@ -1344,7 +1375,7 @@ export default function WorkspaceView({
                                   className="text-[10px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer shrink-0"
                                 >
                                   Reemplazar
-                                </button>
+                                </button>}
                               </div>
                             )}
                           </div>
@@ -1355,34 +1386,32 @@ export default function WorkspaceView({
                                 e.stopPropagation();
                                 toggleManualStep(step.id);
                               }}
-                              className={`w-full p-2 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                              className={`flex min-h-14 w-full cursor-pointer items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${
                                 isStepDone
-                                  ? "bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs"
-                                  : "bg-white border-gray-200 hover:border-sky-400 hover:bg-sky-50/20 text-slate-800"
+                                  ? "border-emerald-300 bg-emerald-50/90 text-emerald-950"
+                                  : "border-blue-200 bg-blue-600 text-white shadow-md shadow-blue-600/15 hover:bg-blue-700"
                               }`}
                             >
                               <div className="flex items-center gap-2">
                                 <div
-                                  className={`w-4.5 h-4.5 rounded flex items-center justify-center border transition-all shrink-0 ${
+                                  className={`grid size-7 shrink-0 place-items-center rounded-lg border transition-all ${
                                     isStepDone
                                       ? "bg-emerald-600 border-emerald-600 text-white"
-                                      : "bg-white border-gray-300 text-transparent"
+                                      : "border-white/40 bg-white/15 text-white"
                                   }`}
                                 >
                                   <Check size={12} strokeWidth={3} />
                                 </div>
                                 <div>
                                   <p className="text-xs font-extrabold">
-                                    {isStepDone
-                                      ? "Actividad completada ✓"
-                                      : "Marcar actividad como realizada"}
+                                    {isStepDone ? "Actividad completada" : "Completar este paso"}
                                   </p>
                                 </div>
                               </div>
 
                               {isStepDone && (
-                                <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-mono shrink-0">
-                                  Listo ✓
+                                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">
+                                  Listo
                                 </span>
                               )}
                             </button>
@@ -1391,10 +1420,11 @@ export default function WorkspaceView({
                       </div>
                     </div>
                   )}
-                </div>
+                </article>
               );
             })}
-          </div>
+            </div>
+          </section>
         </div>
       ) : (
         /* ========================================================================= */
@@ -1815,6 +1845,55 @@ export default function WorkspaceView({
         </div>
       )}
 
+      {isDelegated && caseId && (
+        <section className="grid gap-5 lg:grid-cols-2">
+          <CaseDocuments caseId={caseId} role="owner" />
+          <CaseMessages caseId={caseId} />
+        </section>
+      )}
+
+      {uploadingReqId && (
+        <div className="fixed inset-0 z-[75] grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="upload-evidence-title">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <header className="relative bg-[linear-gradient(120deg,#071a3d,#1261db)] p-6 text-white sm:p-7">
+              <button type="button" onClick={closeUploadModal} aria-label="Cerrar" className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"><X size={18}/></button>
+              <span className="grid size-12 place-items-center rounded-2xl bg-white/15"><UploadCloud /></span>
+              <p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-cyan-200">Evidencia del trámite</p>
+              <h2 id="upload-evidence-title" className="mt-1 text-2xl font-black">Adjunta tu archivo</h2>
+              <p className="mt-2 text-sm text-blue-100">Puedes arrastrar una imagen o PDF y revisarlo antes de guardarlo.</p>
+            </header>
+            <div className="space-y-5 p-5 sm:p-7">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragEnter={(event) => { event.preventDefault(); setIsDraggingFile(true); }}
+                onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true); }}
+                onDragLeave={(event) => { event.preventDefault(); setIsDraggingFile(false); }}
+                onDrop={(event) => { event.preventDefault(); setIsDraggingFile(false); selectUploadFile(event.dataTransfer.files?.[0]); }}
+                className={`grid min-h-44 w-full place-items-center rounded-3xl border-2 border-dashed p-6 text-center transition ${isDraggingFile ? "border-blue-500 bg-blue-50 ring-4 ring-blue-100" : "border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/60"}`}
+              >
+                <span><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-blue-100 text-blue-700"><UploadCloud size={28}/></span><strong className="mt-4 block text-sm text-slate-900">Arrastra tu archivo aquí</strong><span className="mt-1 block text-xs text-slate-500">o haz clic para seleccionarlo · PDF, JPG o PNG · máximo 8 MB</span></span>
+              </button>
+
+              {selectedUploadFile && uploadPreviewUrl && (
+                <section className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700">{selectedUploadFile.type === "application/pdf" ? <FileText size={20}/> : <ImageIcon size={20}/>}</span><div className="min-w-0"><p className="truncate text-xs font-black text-slate-900">{selectedUploadFile.name}</p><p className="text-[11px] text-slate-500">{(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB</p></div></div>
+                    <a href={uploadPreviewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-blue-50 px-3 text-xs font-black text-blue-700"><Eye size={15}/> Ver aparte</a>
+                  </div>
+                  {selectedUploadFile.type === "application/pdf" ? <iframe title={`Vista previa de ${selectedUploadFile.name}`} src={uploadPreviewUrl} className="h-72 w-full bg-slate-100"/> : <img src={uploadPreviewUrl} alt={`Vista previa de ${selectedUploadFile.name}`} className="h-72 w-full bg-slate-100 object-contain"/>}
+                </section>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={closeUploadModal} disabled={isScanning} className="min-h-12 rounded-xl bg-slate-100 text-sm font-black text-slate-700">Cancelar</button>
+                <button type="button" onClick={() => void uploadSelectedEvidence()} disabled={!selectedUploadFile || isScanning} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-200 disabled:opacity-50">{isScanning ? <><RefreshCw className="animate-spin" size={17}/>{scanStep}</> : <><UploadCloud size={17}/>Guardar archivo</>}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Document Validation Modal Integration */}
       {actionStep && (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 p-4">
@@ -1833,9 +1912,8 @@ export default function WorkspaceView({
               {actionStep.description}
             </p>
             <div className="mt-5 space-y-4">
-              {(actionStep.dateTrackingType||actionStep.completionMode==='date') && (
-                <label className="block text-xs font-black">
-                  Selecciona la fecha
+              <label className="block text-xs font-black">
+                  Fecha de realización
                   <input
                     type="date"
                     required
@@ -1845,7 +1923,10 @@ export default function WorkspaceView({
                       setActionData({ ...actionData, date: e.target.value })
                     }
                   />
+                  <span className="mt-1 block text-[11px] font-normal text-slate-500">Esta fecha quedará registrada junto con la confirmación.</span>
                 </label>
+              {actionData.documentId && (
+                <a href={`/api/v1/documents/${actionData.documentId}/content`} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700"><span className="inline-flex min-w-0 items-center gap-2"><FileText size={16}/><span className="truncate">{actionData.fileName || "Ver archivo adjunto"}</span></span><Eye size={16}/></a>
               )}
               {actionStep.actionConfig?.fields?.map(field=><label key={field.key} className="block text-xs font-black">{field.label}{field.type==='select'?<select required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}><option value="">Selecciona</option>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:<input type={field.type||'text'} required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}/>}</label>)}
               <label className="block text-xs font-black">

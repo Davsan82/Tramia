@@ -7,6 +7,53 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-13
+
+### Agregado
+
+- Asignación automática del asesor elegido después de confirmar un pago exclusivamente simulado.
+- Foto editable en el portal del asesor y reputación visible en el perfil ciudadano.
+- Identificador interno del catálogo para separar las URLs legibles de las llaves UUID de Neon.
+- Fotografías profesionales para los perfiles temporales de asesores, con soporte de avatar en API y administración.
+- Tarjetas guardadas con identidad visual de Visa, Mastercard, American Express y Diners Club.
+- Animación de procesamiento, aprobación y retorno automático al trámite después del pago de prueba.
+- Modal de carga por selección o arrastre con vista previa para PDF, JPG y PNG.
+- Fecha obligatoria y persistente en cada confirmación del checklist.
+- Health check de base de datos, variables críticas e integraciones opcionales sin exposición de secretos.
+
+### Corregido
+
+- Persistencia de rutas guiadas, avance y bloqueo de pasos contra Neon.
+- Tipos de acción del editor administrativo alineados con los valores de PostgreSQL.
+- Conexión WebSocket de Neon para soportar las transacciones interactivas usadas por trámites, delegaciones y administración.
+- Delegaciones sin asesor impedidas en la API y en la interfaz.
+- Navegación estable entre Indicadores, Pagos simulados y Calificaciones en el panel administrativo.
+- Bloqueo visual y validación de servidor para impedir avanzar sin cerrar el paso anterior.
+- Carga de fotografías locales de asesores desde las respuestas de la API.
+
+### Mejorado
+
+- Checklist responsive con estados completado, actual y bloqueado, siguiente paso visible y porcentaje de avance.
+- Confirmaciones irreversibles con fecha en formato peruano y archivo consultable después de la carga.
+- Selector de asesor y pago con tarjetas de marca, estados accesibles y mensajes claros.
+- Catálogo y formularios administrativos alineados con la paleta de control de TramIA.
+- Panel de indicadores con pagos, trámites, capacidad de asesores, documentos, reputación y alertas operativas.
+- Experiencia y fotografía del portal del asesor, manteniendo identidad verificada y reputación bilateral.
+- Respuestas de Netlify y Neon más robustas ante errores de configuración o contenido no JSON.
+
+### Seguridad
+
+- El health check informa únicamente presencia, validez y categoría de variables; nunca devuelve sus valores.
+- En producción, la ausencia de configuración crítica devuelve HTTP 503.
+- Los medios de pago continúan tokenizados dentro del simulador y no almacenan PAN ni CVV.
+
+### Verificado
+
+- Los 16 trámites tienen pasos, fuente primaria y enlace oficial operativo.
+- Las 16 fuentes oficiales respondieron correctamente durante la revisión del 13 de agosto de 2026.
+- Los módulos administrativos, el flujo autogestionado y el pago de prueba con asignación fueron probados contra Neon.
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción finalizan correctamente.
+
 ## [0.5.2] - 2026-08-13
 
 ### Corregido
@@ -151,7 +198,8 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Davsan82/Tramia/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Davsan82/Tramia/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Davsan82/Tramia/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Davsan82/Tramia/compare/v0.4.0...v0.5.0

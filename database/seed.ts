@@ -312,7 +312,7 @@ async function seed() {
         officialUrl: item.sourceUrl,
         sourceVerifiedAt: new Date('2026-08-12T00:00:00-05:00'),
         dataClassification: 'official_reference_demo',
-        verificationNotes: 'Contenido demo estructurado desde una referencia oficial. Confirmar tasas, plazos y condiciones antes de producción.',
+        verificationNotes: 'Contenido estructurado desde una referencia oficial. Confirmar tasas, plazos y condiciones antes de publicar.',
         status: 'reviewed',
       }).returning();
     }
@@ -377,7 +377,7 @@ async function seed() {
     }
   }
 
-  console.log(`Seed completado: ${demoProcedures.length} trámites demo estructurados.`);
+  console.log(`Seed completado: ${demoProcedures.length} trámites estructurados.`);
 }
 
 seed().catch((error) => {

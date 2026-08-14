@@ -203,23 +203,17 @@ export default function App() {
     try {
       const response = await fetch('/api/v1/my-procedures', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ procedureId: proc.id }),
+        body: JSON.stringify({ procedureId: proc.databaseId || proc.id }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'No pudimos iniciar este trámite.');
-      if (isDelegated) {
-        const delegationResponse = await fetch(`/api/v1/my-procedures/${payload.data.id}/delegation`, {
-          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const delegationPayload = await delegationResponse.json().catch(() => ({}));
-        if (!delegationResponse.ok) throw new Error(delegationPayload.message || 'No pudimos preparar la delegación.');
-      }
+      // La solicitud de delegación se crea recién después de completar los
+      // prerrequisitos personales y elegir un asesor en Mis trámites.
     } catch (error) {
       setToastMessage({ title: 'No pudimos iniciar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
       return;
     }
-    setIsDelegatedSelected(isDelegated);
+    setIsDelegatedSelected(false);
     if (isDelegated) {
       trackEvent('tramite_delegado_elegido', {
         procedure_id: proc.id,
@@ -396,7 +390,7 @@ export default function App() {
         setActiveProcedures([newActive, ...activeProcedures]);
       }
 
-      void fetch(`/api/v1/my-procedures/by-procedure/${proc.id}/progress`, {
+      if (!isQuiet) void fetch(`/api/v1/my-procedures/by-procedure/${proc.databaseId || proc.id}/progress`, {
         method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progressPercentage: pctToUse, currentStepId: stepId, completedStepIds: completedStepIdsParam || [] }),
       }).then(async response => {
@@ -431,10 +425,10 @@ export default function App() {
 
   // Find procedure details by ID to allow easy checklist jump
   const handleSelectProcedureById = async (procedureId: string) => {
-    const found = procedures.find(p => p.id === procedureId);
+    const found = procedures.find(p => p.id === procedureId || p.databaseId === procedureId);
     if (found) {
       // Find custom requirements from active states if any
-      const activeCopy = activeProcedures.find(ap => ap.procedureId === procedureId);
+      const activeCopy = activeProcedures.find(ap => ap.procedureId === procedureId || ap.procedureId === found.databaseId || ap.procedureId === found.id);
       if (activeCopy) {
         setIsDelegatedSelected(activeCopy.isDelegated);
         setSelectedProcedure({
@@ -447,7 +441,7 @@ export default function App() {
         let persistedWorkspace: any = null;
         if (userProfile) {
           try {
-            const response = await fetch(`/api/v1/my-procedures/by-procedure/${procedureId}/workspace`, { credentials: 'include' });
+            const response = await fetch(`/api/v1/my-procedures/by-procedure/${found.databaseId || procedureId}/workspace`, { credentials: 'include' });
             if (response.ok) persistedWorkspace = await response.json();
           } catch (error) {
             console.warn('[procedure-workspace]', error);
@@ -458,6 +452,7 @@ export default function App() {
         const cleanRequirements: Requirement[] = found.requirements.map(r => ({
           ...r,
           status: statusLabels[persistedRequirements.get(r.id) || 'pending'] || 'Pendiente',
+          userProcedureRequirementId: (persistedWorkspace?.requirements || []).find((item: any) => item.requirementId === r.id)?.instanceId,
           uploadedFileName: undefined,
           feedbackMessage: undefined,
           imageQuality: undefined,

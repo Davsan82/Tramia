@@ -1,6 +1,7 @@
 import type { Procedure, Requirement, Step } from '../types';
 
 type ApiListItem = {
+  id: string;
   slug: string;
   title: string;
   shortDescription: string;
@@ -29,7 +30,7 @@ type ApiDetail = ApiListItem & {
     title: string;
     description: string;
     position: number;
-    completionMode: 'manual'|'form'|'upload'|'date'|'external';
+    completionMode: 'manual'|'evidence'|'form'|'external_check'|'payment';
     officialUrl?: string;
     stageId?: string;
     stepType?: string;
@@ -83,13 +84,22 @@ function mapDetail(item: ApiDetail): Procedure {
     isRequired: requirement.isRequired,
     requiresEvidence: true,
   })));
-  const steps: Step[] = item.steps.map((step) => ({
+  const steps: Step[] = item.steps.map((step) => {
+    const uiCompletionMode: Step['completionMode'] = step.dateTrackingType
+      ? 'date'
+      : step.completionMode === 'evidence'
+        ? 'upload'
+        : step.completionMode === 'external_check' || step.completionMode === 'payment'
+          ? 'external'
+          : step.completionMode;
+
+    return ({
     id: step.id,
     title: step.title,
     description: step.description,
     status: 'PENDIENTE',
     order: step.position,
-    requiresEvidence: step.completionMode === 'upload',
+    requiresEvidence: step.completionMode === 'evidence',
     actionUrl: step.officialUrl,
     actionUrlLabel: step.officialUrl ? 'Ir al sitio oficial' : undefined,
     stageId: step.stageId,
@@ -99,15 +109,17 @@ function mapDetail(item: ApiDetail): Procedure {
     whyItMatters: step.whyItMatters,
     nextStepHint: step.nextStepHint,
     dateTrackingType: step.dateTrackingType,
-    completionMode: step.completionMode,
+    completionMode: uiCompletionMode,
     actionConfig: step.actionConfig,
     reminderOffsets: step.reminderOffsets,
     checklistItems: step.checklistItems,
     dependsOn: step.dependsOn,
-  }));
+    });
+  });
 
   return {
     id: item.slug,
+    databaseId: item.id,
     title: item.title,
     category: item.category || item.categoryName,
     description: item.fullDescription || item.shortDescription,

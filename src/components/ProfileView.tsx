@@ -14,12 +14,14 @@ import {
   Save,
   Send,
   ShieldCheck,
+  Star,
   Trash2,
   Upload,
   UserRound,
 } from "lucide-react";
 import { UserProfile } from "../types";
 import TramIALogo from "./TramIALogo";
+import PaymentBrandLogo, { paymentBrandName, paymentBrandTheme } from "./PaymentBrandLogo";
 import { Department, District, loadUbigeo, Province } from "../services/ubigeo";
 
 interface ProfileViewProps {
@@ -51,7 +53,8 @@ export default function ProfileView({
     [emailNotice, setEmailNotice] = useState<Notice>(null),
     [methods, setMethods] = useState<any[]>([]),
     [payments, setPayments] = useState<any[]>([]),
-    [uploading, setUploading] = useState(false);
+    [uploading, setUploading] = useState(false),
+    [reputation, setReputation] = useState({ average: "0", count: 0 });
   const isIdentityVerified = profile.identityVerificationStatus === "verified";
 
   useEffect(
@@ -100,6 +103,13 @@ export default function ProfileView({
   useEffect(() => {
     void loadPayments();
   }, []);
+  useEffect(() => {
+    if (!profile.id) return;
+    fetch(`/api/v1/users/${profile.id}/reputation`, { credentials: "include" })
+      .then((response) => response.json())
+      .then((payload) => setReputation(payload.reputation || { average: "0", count: 0 }))
+      .catch(() => {});
+  }, [profile.id]);
   async function uploadAvatar(file?: File) {
     if (!file) return;
     setUploading(true);
@@ -284,6 +294,20 @@ export default function ProfileView({
                 onChange={(e) => void uploadAvatar(e.target.files?.[0])}
               />
             </label>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.18em] text-amber-700">Reputación TramIA</p>
+            <h2 className="mt-1 text-lg font-black">Tu experiencia como cliente</h2>
+            <p className="mt-1 text-sm text-slate-600">Los asesores pueden calificar tu colaboración cuando finaliza una gestión delegada.</p>
+          </div>
+          <div className="flex min-w-44 items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+            <Star className="fill-amber-400 text-amber-400" size={30} />
+            <div><p className="text-2xl font-black">{Number(reputation.average).toFixed(1)}</p><p className="text-[11px] font-bold text-slate-500">{reputation.count} {reputation.count === 1 ? "calificación" : "calificaciones"}</p></div>
           </div>
         </div>
       </section>
@@ -525,16 +549,17 @@ export default function ProfileView({
       <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">
         <SectionTitle
           icon={CreditCard}
-          title="Medios de pago simulados"
-          description="Tarjetas ficticias para probar pagos. Nunca guardamos PAN ni CVV reales."
+          title="Mis medios de pago"
+          description="Administra las tarjetas disponibles para tus pagos dentro de TramIA."
         />
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {methods.map((method) => (
             <article
               key={method.id}
-              className="rounded-2xl bg-gradient-to-br from-slate-950 to-blue-800 p-5 text-white"
+              className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${paymentBrandTheme(method.brand)} p-5 text-white shadow-lg`}
             >
-              <div className="flex items-center justify-between"><p className="text-xs font-black uppercase">{method.brand}</p>{method.isDefault&&<span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-black">Predeterminada</span>}</div>
+              <div className="absolute -right-10 -top-12 size-36 rounded-full bg-white/10" />
+              <div className="relative flex items-start justify-between"><PaymentBrandLogo brand={method.brand} />{method.isDefault&&<span className="rounded-full border border-white/20 bg-white/15 px-2 py-1 text-[10px] font-black backdrop-blur">Predeterminada</span>}</div>
               <p className="mt-8 text-lg font-black tracking-[.2em]">
                 •••• •••• •••• {method.lastFour}
               </p>
@@ -555,13 +580,13 @@ export default function ProfileView({
               onClick={() => void addMethod(brand)}
               className="min-h-10 rounded-xl border border-blue-200 px-4 text-xs font-black uppercase text-blue-700"
             >
-              Crear {brand} ficticia
+              Agregar {paymentBrandName(brand)}
             </button>
           ))}
         </div>
         <p className="mt-4 text-xs text-slate-500">
-          Los números completos y códigos de seguridad no se generan ni
-          almacenan. Cada tarjeta usa un token interno no financiero.
+          Entorno de prueba: no ingreses información financiera real. TramIA no
+          almacena números completos ni códigos de seguridad.
         </p>
       </section>
       {payments.length > 0 && (

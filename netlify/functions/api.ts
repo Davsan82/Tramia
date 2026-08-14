@@ -1,6 +1,7 @@
 import serverless from "serverless-http";
 import { connectLambda } from "@netlify/blobs";
 import { app } from "../../server";
+import { closeDrizzleDatabase } from "../../server/db/client";
 
 const expressHandler = serverless(app);
 
@@ -22,12 +23,18 @@ export const handler = async (event: NetlifyEvent, context: unknown) => {
     ? `/api${incomingPath.slice(functionPrefix.length)}`
     : incomingPath;
 
-  return expressHandler(
-    {
-      ...event,
-      path: normalizedPath,
-      rawPath: normalizedPath,
-    },
-    context,
-  );
+  try {
+    return await expressHandler(
+      {
+        ...event,
+        path: normalizedPath,
+        rawPath: normalizedPath,
+      },
+      context,
+    );
+  } finally {
+    // En funciones serverless, cada invocación cierra su pool para evitar
+    // conexiones WebSocket huérfanas entre ejecuciones congeladas.
+    await closeDrizzleDatabase();
+  }
 };
