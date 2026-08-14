@@ -275,6 +275,10 @@ export default function ProfileView({
                   profile.avatarUrl || "/assets/mascot/tramia-bot-guiding.png"
                 }
                 alt="Foto de perfil"
+                onError={(event) => {
+                  const fallback = "/assets/mascot/tramia-bot-guiding.png";
+                  if (!event.currentTarget.src.endsWith(fallback)) event.currentTarget.src = fallback;
+                }}
                 className="h-32 w-32 rounded-full border-4 border-white/30 object-cover drop-shadow-xl sm:h-40 sm:w-40"
               />
               {isIdentityVerified && (

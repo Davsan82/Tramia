@@ -44,6 +44,7 @@ import DocumentValidationModal, {
   ValidationResult,
 } from "./DocumentValidationModal";
 import { trackEvent } from "../utils/analytics";
+import DelegationModalV2 from "./DelegationModalV2";
 
 function getPaymentInfo(
   stepTitle: string,
@@ -448,6 +449,8 @@ interface WorkspaceViewProps {
   ) => void;
   isNewUser?: boolean;
   initialIsDelegated?: boolean;
+  initialDelegationOpen?: boolean;
+  onDelegationOpened?: () => void;
   initialIsPaid?: boolean;
   onDeleteProcedure?: (procedureId: string) => void;
 }
@@ -457,6 +460,8 @@ export default function WorkspaceView({
   onBack,
   onAddActiveProcedure,
   initialIsDelegated = false,
+  initialDelegationOpen = false,
+  onDelegationOpened,
   initialIsPaid = false,
   onDeleteProcedure,
 }: WorkspaceViewProps) {
@@ -473,6 +478,8 @@ export default function WorkspaceView({
 
   // Navigation: Autogestionar vs Delegar
   const [isDelegated, setIsDelegated] = useState<boolean>(initialIsDelegated);
+  const [isDelegationModalOpen, setIsDelegationModalOpen] = useState(initialDelegationOpen);
+  const [delegationIntent, setDelegationIntent] = useState(initialDelegationOpen);
   const [isBotChatOpen, setIsBotChatOpen] = useState(false);
   const [caseId, setCaseId] = useState<string>("");
   const [actionStep, setActionStep] = useState<Step | null>(null);
@@ -486,6 +493,13 @@ export default function WorkspaceView({
       .then((p) => setCaseId(p.instance?.id || ""))
       .catch(() => {});
   }, [procedure.databaseId, procedure.id]);
+  useEffect(() => {
+    if (initialDelegationOpen) {
+      setDelegationIntent(true);
+      setIsDelegationModalOpen(true);
+      onDelegationOpened?.();
+    }
+  }, [initialDelegationOpen, onDelegationOpened]);
   const completeAction = async () => {
     if (!actionStep || !caseId) return;
     const response = await fetch(
@@ -1023,20 +1037,6 @@ export default function WorkspaceView({
             </div>
           </div>
         </div>
-        {!isDelegated && (
-          <div className="rounded-2xl border border-blue-100 bg-[linear-gradient(110deg,#f8fbff,#eef7ff)] p-4 sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">Avance del trámite</p>
-                <p className="mt-1 flex items-center gap-2 text-sm font-black text-slate-900">
-                  {nextPendingStep ? <><CircleDashed size={17} className="shrink-0 text-blue-600"/><span className="truncate">Siguiente paso: {nextPendingStep.title}</span></> : <><CheckCircle2 size={17} className="text-emerald-600"/>Todos los pasos están completos</>}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-4"><span className="text-xs font-bold text-slate-500">{completedStepIds.length} de {totalSteps}</span><strong className="text-2xl font-black text-blue-700">{completionPercentageA}%</strong></div>
-            </div>
-            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-blue-100"><div className={`h-full rounded-full transition-all duration-500 ${completionPercentageA === 100 ? "bg-emerald-500" : "bg-[linear-gradient(90deg,#2563eb,#06b6d4)]"}`} style={{width:`${completionPercentageA}%`}}/></div>
-          </div>
-        )}
       </div>
 
       {/* ========================================================================= */}
@@ -1045,22 +1045,30 @@ export default function WorkspaceView({
       {!isDelegated ? (
         <div className="space-y-6">
           {/* TramIA route summary */}
-          <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#082657_0%,#0d4fc4_55%,#13b5d1_125%)] p-5 text-white shadow-[0_20px_55px_-28px_rgba(8,38,87,.65)] sm:p-7">
+          <section className={`relative overflow-hidden rounded-[2rem] p-5 text-white shadow-[0_20px_55px_-28px_rgba(8,38,87,.65)] sm:p-7 ${delegationIntent ? "bg-[linear-gradient(125deg,#251052_0%,#5b21b6_55%,#0d9fc1_125%)]" : "bg-[linear-gradient(125deg,#082657_0%,#0d4fc4_55%,#13b5d1_125%)]"}`}>
             <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,white_1px,transparent_1px)] [background-size:22px_22px]" />
             <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em] text-cyan-100">
-                  <ClipboardList size={14} /> Tu ruta TramIA
+                  <ClipboardList size={14} /> {delegationIntent ? "Preparación para delegar" : "Tu ruta TramIA"}
                 </span>
-                <h2 className="mt-4 text-2xl font-black sm:text-3xl">Avanza paso a paso, sin perderte</h2>
+                <h2 className="mt-4 text-2xl font-black sm:text-3xl">{delegationIntent ? "Delega con claridad y mantén el control" : "Avanza paso a paso, sin perderte"}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-                  Completa una actividad a la vez. Te indicaremos qué hacer, qué documento presentar y cuál es tu siguiente paso.
+                  {delegationIntent ? "Completa tus acciones personales, elige al asesor que prefieras y confirma el servicio con una tarjeta guardada." : "Completa una actividad a la vez. Te indicaremos qué hacer, qué documento presentar y cuál es tu siguiente paso."}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-bold text-blue-50">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CheckSquare size={14}/> Confirmaciones guiadas</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><FileUp size={14}/> Archivos y evidencias</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CalendarCheck2 size={14}/> Fechas y alertas</span>
+                  {delegationIntent ? <>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">1 · Pasos personales</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">2 · Elegir asesor</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">3 · Confirmar pago</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">4 · Seguimiento</span>
+                  </> : <>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CheckSquare size={14}/> Confirmaciones guiadas</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><FileUp size={14}/> Archivos y evidencias</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><CalendarCheck2 size={14}/> Fechas y alertas</span>
+                  </>}
                 </div>
+                {delegationIntent && <button type="button" onClick={() => setIsDelegationModalOpen(true)} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-xs font-black text-violet-800 shadow-lg transition hover:bg-violet-50"><ShieldCheck size={17}/> Abrir panel de delegación <ChevronRight size={16}/></button>}
               </div>
 
               <div className="rounded-3xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:p-5">
@@ -1076,7 +1084,7 @@ export default function WorkspaceView({
                 </div>
                 <p className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-50">
                   {isAllStepsCompleted ? <CheckCircle2 size={16} className="text-emerald-300"/> : <CircleDashed size={16} className="text-cyan-300"/>}
-                  {isAllStepsCompleted ? "Trámite finalizado" : isPriorStepsCompleted ? "Solo falta el paso final" : "Ruta en curso"}
+                  {isAllStepsCompleted ? "Trámite finalizado" : isPriorStepsCompleted ? "Solo falta el paso final" : delegationIntent ? `Siguiente: ${nextPendingStep?.title || "elegir asesor"}` : "Ruta en curso"}
                 </p>
               </div>
             </div>
@@ -1119,39 +1127,45 @@ export default function WorkspaceView({
 
           {/* DEFINITIVE COMPLETION BANNER: 100% COMPLETE */}
           {isAllStepsCompleted && (
-            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 md:p-8 text-center space-y-4 shadow-sm animate-fadeIn">
-              <div className="w-14 h-14 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto text-2xl font-black shadow-sm">
-                ✓
+            <section className="relative overflow-hidden rounded-[2rem] border border-emerald-300 bg-[linear-gradient(115deg,#ecfdf5_0%,#effcff_62%,#dff8ff_100%)] p-6 shadow-lg shadow-emerald-100/70 animate-fadeIn sm:p-8">
+              <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_1px_1px,#34d399_1px,transparent_0)] bg-size-[22px_22px]" />
+              <Sparkles className="absolute right-8 top-7 text-cyan-400/60" size={26} aria-hidden="true" />
+              <div className="relative z-10 grid items-center gap-6 sm:grid-cols-[1fr_auto]">
+                <div className="text-center sm:text-left">
+                  <div className="flex flex-col items-center gap-3 sm:flex-row">
+                    <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-200">
+                      <CheckCircle2 size={30} strokeWidth={2.5} />
+                    </span>
+                    <div>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[.16em] text-emerald-800">
+                        Ruta completada · 100%
+                      </span>
+                      <h3 className="mt-2 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
+                        ¡Excelente, completaste tu trámite!
+                      </h3>
+                    </div>
+                  </div>
+                  <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:mx-0">
+                    Terminaste todos los pasos de <strong className="text-slate-800">{procedure.title}</strong>. La ruta quedó guardada en tu historial para que puedas consultar sus fechas, documentos y avances cuando lo necesites.
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-emerald-800">
+                    Conserva tus constancias y comprobantes hasta recibir el resultado definitivo de la entidad responsable.
+                  </p>
+                  <button
+                    onClick={onBack}
+                    className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 text-sm font-black text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5 hover:bg-emerald-700"
+                  >
+                    <span>Ver mis trámites</span>
+                    <ChevronRight size={17} />
+                  </button>
+                </div>
+                <img
+                  src="/assets/mascot/tramia-bot-superhero.png"
+                  alt="TramIA celebra que completaste tu trámite"
+                  className="mx-auto h-36 w-36 object-contain drop-shadow-xl sm:h-44 sm:w-44"
+                />
               </div>
-              <div className="space-y-1.5 max-w-xl mx-auto">
-                <span className="inline-block px-3 py-0.5 bg-emerald-200/80 text-emerald-900 font-black text-[10px] uppercase font-mono tracking-wider rounded-md">
-                  Trámite Finalizado al 100%
-                </span>
-                <h3 className="text-xl font-extrabold text-emerald-950">
-                  ¡Has completado al 100% tu trámite! 🎉
-                </h3>
-                <p className="text-xs text-emerald-800 font-medium leading-relaxed">
-                  Todas las actividades del trámite, incluyendo la recogida
-                  oficial del documento en la entidad pública, han sido
-                  completadas con éxito.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-3 pt-2">
-                <button
-                  onClick={() => setCompletedStepIds([])}
-                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-gray-200 cursor-pointer shadow-2xs"
-                >
-                  Reiniciar checklist
-                </button>
-                <button
-                  onClick={onBack}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl cursor-pointer shadow-md flex items-center gap-1.5"
-                >
-                  <span>Volver a Mis Trámites</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
+            </section>
           )}
 
           {/* Guided TramIA timeline */}
@@ -1850,6 +1864,19 @@ export default function WorkspaceView({
           <CaseDocuments caseId={caseId} role="owner" />
           <CaseMessages caseId={caseId} />
         </section>
+      )}
+
+      {isDelegationModalOpen && caseId && (
+        <DelegationModalV2
+          item={{ id: caseId }}
+          onClose={() => setIsDelegationModalOpen(false)}
+          onSaved={() => {
+            setIsPaid(true);
+            setIsDelegated(true);
+            setDelegationIntent(false);
+            setIsDelegationModalOpen(false);
+          }}
+        />
       )}
 
       {uploadingReqId && (

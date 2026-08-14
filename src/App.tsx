@@ -59,6 +59,7 @@ export default function App() {
 
   // Track selection of "Hacerlo yo mismo" vs "Delegar a TramIA" from the Detail View
   const [isDelegatedSelected, setIsDelegatedSelected] = useState(false);
+  const [openDelegationAfterStart, setOpenDelegationAfterStart] = useState(false);
 
   // Completion mode selection modal (Hazlo tú mismo vs Delegar)
   const [isMethodSelectionModalOpen, setIsMethodSelectionModalOpen] = useState(false);
@@ -213,7 +214,10 @@ export default function App() {
       setToastMessage({ title: 'No pudimos iniciar el trámite', desc: error instanceof Error ? error.message : 'Inténtalo nuevamente.', type: 'error' });
       return;
     }
+    // La modalidad solo cambia a delegada después de elegir asesor y aprobar
+    // el pago. Mientras tanto, abrimos el panel de preparación de delegación.
     setIsDelegatedSelected(false);
+    setOpenDelegationAfterStart(isDelegated);
     if (isDelegated) {
       trackEvent('tramite_delegado_elegido', {
         procedure_id: proc.id,
@@ -721,6 +725,8 @@ export default function App() {
                 onAddActiveProcedure={handleAddActiveProcedure}
                 isNewUser={userProfile?.isNew}
                 initialIsDelegated={isDelegatedSelected}
+                initialDelegationOpen={openDelegationAfterStart}
+                onDelegationOpened={() => setOpenDelegationAfterStart(false)}
                 initialIsPaid={activeProcedures.find(ap => ap.procedureId === selectedProcedure.id)?.isPaid}
                 onDeleteProcedure={handleDeleteActiveProcedure}
               />

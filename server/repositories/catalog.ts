@@ -18,6 +18,11 @@ import {
 let bootstrapCache: { expiresAt: number; data: Awaited<ReturnType<typeof queryCatalogBootstrap>> } | null = null;
 let bootstrapPromise: Promise<Awaited<ReturnType<typeof queryCatalogBootstrap>>> | null = null;
 
+export function invalidateCatalogCache() {
+  bootstrapCache = null;
+  bootstrapPromise = null;
+}
+
 export async function listCategories() {
   const db = getDrizzleDatabase();
   return db.select({

@@ -331,14 +331,8 @@ function GeneralForm({
             />
           </Field>
         </div>
-        <Checks
-          form={form}
-          setForm={setForm}
-          names={[
-            ["isActive", "Activo y visible"],
-            ["isFeatured", "Mostrar como frecuente"],
-          ]}
-        />
+        <VisibilitySwitch form={form} setForm={setForm} />
+        <Checks form={form} setForm={setForm} names={[["isFeatured", "Mostrar como frecuente"]]} />
         <Submit saving={saving} />
       </form>
     </Card>
@@ -686,6 +680,10 @@ function Checks({ form, setForm, names }: any) {
       ))}
     </div>
   );
+}
+function VisibilitySwitch({ form, setForm }: any) {
+  const active = form.isActive !== false;
+  return <button type="button" role="switch" aria-checked={active} onClick={() => setForm({ ...form, isActive: !active })} className={`sm:col-span-2 flex items-center justify-between gap-4 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 ${active?'border-emerald-200 bg-emerald-50 focus:ring-emerald-100':'border-slate-200 bg-slate-50 focus:ring-slate-200'}`}><div><p className={`text-sm font-black ${active?'text-emerald-900':'text-slate-700'}`}>{active?'Visible en el catálogo público':'Oculto del catálogo público'}</p><p className="mt-1 text-xs leading-5 text-slate-500">{active?'Los usuarios pueden encontrar y consultar este trámite.':'El contenido se conserva, pero no se muestra en el frontend.'}</p></div><span className={`relative h-8 w-14 shrink-0 rounded-full p-1 transition ${active?'bg-emerald-500':'bg-slate-300'}`}><span className={`block size-6 rounded-full bg-white shadow-md transition-transform ${active?'translate-x-6':'translate-x-0'}`}/></span></button>;
 }
 function Card({ children }: { children: React.ReactNode }) {
   return (

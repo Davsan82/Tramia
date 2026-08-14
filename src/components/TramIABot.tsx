@@ -30,6 +30,7 @@ export default function TramIABot({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasAssignedAdvisor = isPaid && Boolean(advisorName) && !advisorName.toLowerCase().includes('copiloto');
 
   // Initialize with greeting
   useEffect(() => {
@@ -41,13 +42,15 @@ export default function TramIABot({
           {
             id: 'welcome',
             sender: 'bot',
-            text: `¡Hola! Soy TramIA Bot, tu asistente inteligente de soporte. Estoy aquí junto a tu asesor asignado, el ${advisorName}, para ayudarte con cualquier duda que tengas sobre tu trámite delegado de "${procedure.title}".\n\n¿En qué te puedo asesorar hoy?`,
+            text: hasAssignedAdvisor
+              ? `¡Hola! Soy TramIA Bot. Te acompaño junto a ${advisorName} para resolver dudas sobre "${procedure.title}" y ayudarte a identificar tu siguiente paso.\n\n¿Qué necesitas revisar hoy?`
+              : `¡Hola! Soy TramIA Bot, tu copiloto para "${procedure.title}". Puedo orientarte sobre requisitos, duración, costos y cada paso antes de que empieces.\n\n¿Qué te gustaría conocer?`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
         ]);
       }, 1000);
     }
-  }, [isOpen, messages.length, procedure.title, advisorName]);
+  }, [isOpen, messages.length, procedure.title, advisorName, hasAssignedAdvisor]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function TramIABot({
 
       const approvedCount = requirements.filter(r => r.status === 'Aprobado').length;
       const totalCount = requirements.length;
-      const pct = Math.round((approvedCount / totalCount) * 100);
+      const pct = totalCount ? Math.round((approvedCount / totalCount) * 100) : 0;
 
       if (textLower.includes('hola') || textLower.includes('buen') || textLower.includes('saludo')) {
         replyText = `¡Hola! Un gusto saludarte. Cuéntame, ¿tienes alguna pregunta sobre los requisitos o el proceso de delegación para "${procedure.title}"?`;
@@ -120,42 +123,44 @@ export default function TramIABot({
     { label: '¿Cuánto tiempo demora?', query: '¿Cuánto tiempo demora el trámite?' },
     { label: '¿Cuáles son los requisitos?', query: '¿Cuáles son los requisitos del trámite?' },
     { label: 'Consultar tarifa del trámite', query: '¿Cuánto cuesta este trámite delegado?' },
-    { label: 'Hablar con Dr. Rodrigo', query: 'Quiero hablar con el asesor Rodrigo' }
+    hasAssignedAdvisor
+      ? { label: `Hablar con ${advisorName}`, query: `Quiero hablar con mi asesor ${advisorName}` }
+      : { label: '¿Cuándo necesito un asesor?', query: '¿En qué momento me conviene elegir un asesor?' }
   ];
 
   return (
-    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 w-full sm:w-[420px] h-full sm:h-[600px] bg-white border border-gray-200 sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scaleIn" id="tramia-bot-window">
+    <div className="fixed inset-0 z-50 flex h-full w-full flex-col overflow-hidden border-blue-100 bg-white shadow-2xl animate-scaleIn sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(720px,calc(100dvh-2.5rem))] sm:w-[460px] sm:rounded-[2rem] sm:border" id="tramia-bot-window" role="dialog" aria-modal="true" aria-label="Chat con TramIA Bot">
       
       {/* Bot Header */}
-      <div className="bg-slate-900 text-white p-4 flex items-center justify-between border-b border-slate-800" id="tramia-bot-header">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center font-semibold text-white">
-              <Sparkles size={18} className="animate-pulse" />
+      <div className="relative overflow-hidden bg-[linear-gradient(125deg,#071a3d_0%,#0d4fc4_64%,#13b5d1_130%)] px-5 py-4 text-white" id="tramia-bot-header">
+        <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,white_1px,transparent_1px)] [background-size:20px_20px]" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative grid size-14 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/12">
+              <img src="/assets/mascot/tramia-bot-contact.png" alt="TramIA Bot" className="h-16 w-16 object-contain drop-shadow-lg" />
+              <span className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full border-2 border-blue-800 bg-emerald-400" />
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900 animate-ping" />
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900" />
-          </div>
-          <div>
+            <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h4 className="font-extrabold text-sm tracking-tight text-white">TramIA Bot</h4>
-              <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider font-mono">Copiloto</span>
+              <h4 className="text-base font-black tracking-tight text-white">TramIA Bot</h4>
+              <span className="rounded-full border border-cyan-200/30 bg-cyan-200/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-100">Copiloto</span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Asesoría de soporte activo • {advisorName}</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-blue-100">En línea · Orientación sobre tu trámite</p>
+            <p className="mt-1 truncate text-[10px] text-cyan-100/80">{procedure.title}</p>
+            </div>
           </div>
-        </div>
-        
-        <button
+          <button
           onClick={onClose}
-          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+          className="grid size-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
           aria-label="Cerrar chat"
         >
           <X size={18} />
         </button>
+        </div>
       </div>
 
       {/* Message Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" id="tramia-bot-messages">
+      <div className="flex-1 space-y-5 overflow-y-auto bg-[linear-gradient(180deg,#f7fbff,#f8fafc)] p-4 sm:p-5" id="tramia-bot-messages" aria-live="polite">
         {messages.map((msg) => {
           const isBot = msg.sender === 'bot';
           return (
@@ -164,16 +169,16 @@ export default function TramIABot({
               className={`flex items-start gap-2.5 max-w-[85%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
             >
               {isBot && (
-                <div className="w-8 h-8 rounded-lg bg-slate-850 text-white flex items-center justify-center text-xs font-bold font-mono shrink-0 shadow-sm border border-slate-700/50">
-                  IA
+                <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+                  <img src="/assets/mascot/tramia-bot-guiding.png" alt="" className="h-10 w-10 object-contain" />
                 </div>
               )}
               <div className="space-y-1">
                 <div
                   className={`rounded-2xl p-3.5 text-xs font-medium leading-relaxed shadow-sm whitespace-pre-wrap ${
                     isBot
-                      ? 'bg-white text-slate-800 rounded-tl-none border border-gray-150'
-                      : 'bg-blue-600 text-white rounded-tr-none'
+                      ? 'rounded-tl-md border border-blue-100 bg-white text-slate-700 shadow-[0_8px_25px_-18px_rgba(15,50,100,.45)]'
+                      : 'rounded-tr-md bg-[linear-gradient(135deg,#2563eb,#0d4fc4)] text-white shadow-lg shadow-blue-700/10'
                   }`}
                 >
                   {msg.text}
@@ -188,12 +193,12 @@ export default function TramIABot({
 
         {isTyping && (
           <div className="flex items-start gap-2.5 mr-auto max-w-[85%]">
-            <div className="w-8 h-8 rounded-lg bg-slate-850 text-white flex items-center justify-center text-xs font-bold font-mono shrink-0 shadow-sm border border-slate-700/50">
-              IA
+            <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+              <img src="/assets/mascot/tramia-bot-guiding.png" alt="" className="h-10 w-10 object-contain" />
             </div>
             <div className="space-y-1">
-              <div className="bg-white text-slate-800 rounded-2xl rounded-tl-none p-3.5 border border-gray-150 flex items-center gap-1">
-                <span className="text-[11px] font-semibold text-slate-500 italic mr-1">TramIA Bot está escribiendo</span>
+              <div className="flex items-center gap-1 rounded-2xl rounded-tl-md border border-blue-100 bg-white p-3.5 text-slate-800 shadow-sm">
+                <span className="mr-1 text-[11px] font-semibold text-slate-500">TramIA está preparando una respuesta</span>
                 <span className="w-1.5 h-1.5 bg-slate-450 rounded-full animate-bounce delay-0" />
                 <span className="w-1.5 h-1.5 bg-slate-450 rounded-full animate-bounce delay-150" />
                 <span className="w-1.5 h-1.5 bg-slate-450 rounded-full animate-bounce delay-300" />
@@ -206,16 +211,17 @@ export default function TramIABot({
 
       {/* Quick Suggestions Chips */}
       {messages.length > 0 && !isTyping && (
-        <div className="p-3 bg-white border-t border-gray-100 flex gap-2 overflow-x-auto scrollbar-none shrink-0" id="tramia-bot-suggestions">
-          {quickQuestions.map((q, idx) => (
+        <div className="shrink-0 border-t border-blue-50 bg-white px-4 py-3" id="tramia-bot-suggestions">
+          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.12em] text-blue-600"><Sparkles size={13}/> Preguntas rápidas</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">{quickQuestions.map((q, idx) => (
             <button
               key={idx}
               onClick={() => handleSendMessage(q.query)}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold rounded-full text-[10px] whitespace-nowrap transition-all border border-gray-200/60 cursor-pointer hover:scale-[1.01]"
+              className="min-h-9 whitespace-nowrap rounded-full border border-blue-100 bg-blue-50 px-3 text-[10px] font-black text-blue-800 transition hover:border-blue-300 hover:bg-blue-100"
             >
               {q.label}
             </button>
-          ))}
+          ))}</div>
         </div>
       )}
 
@@ -225,7 +231,7 @@ export default function TramIABot({
           e.preventDefault();
           handleSendMessage(inputValue);
         }}
-        className="p-3.5 bg-white border-t border-gray-150 flex gap-2 items-center"
+        className="flex items-center gap-2 border-t border-blue-100 bg-white p-3.5 sm:p-4"
         id="tramia-bot-form"
       >
         <input
@@ -233,16 +239,16 @@ export default function TramIABot({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="Escribe tu duda sobre el trámite aquí..."
-          className="flex-1 bg-slate-100 text-slate-900 placeholder:text-gray-400 font-bold text-xs px-3 py-2.5 rounded-xl border-0 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+          className="min-h-12 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100"
           disabled={isTyping}
         />
         <button
           type="submit"
           disabled={!inputValue.trim() || isTyping}
-          className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-100 text-white disabled:text-slate-400 rounded-xl transition-all cursor-pointer shadow-md active:scale-95"
+          className="grid size-12 shrink-0 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
           aria-label="Enviar duda"
         >
-          <Send size={14} />
+          <Send size={18} />
         </button>
       </form>
     </div>

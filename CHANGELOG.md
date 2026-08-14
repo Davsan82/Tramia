@@ -7,6 +7,33 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-13
+
+### Agregado
+
+- Trámite guiado para solicitar la visa de turismo de EE. UU. B1/B2, con 18 pasos, evidencias, alertas y fuentes oficiales.
+- Vista de detalle histórica de cada gestión, aislada del inicio de nuevos trámites.
+- Control rápido de publicación en el catálogo administrativo y selector equivalente dentro del editor.
+- Persistencia local de fotos y documentos durante el desarrollo, manteniendo Netlify Blobs en producción.
+
+### Corregido
+
+- Visualización de la foto de perfil después de cargarla y respuesta sin caché para imágenes actualizadas.
+- Navegación de «Ver detalle» en el historial para consultar el caso correcto sin crear ni abrir otra gestión.
+- Invalidación inmediata del catálogo al activar, desactivar o editar un trámite.
+- Exclusión consistente de trámites inactivos del catálogo, búsquedas y fichas públicas.
+
+### Mejorado
+
+- TramIA Bot renovado y contextualizado con la identidad visual del personaje.
+- Flujo de delegación, selección de asesor y pago de prueba integrado con la ruta del trámite.
+- Resumen de progreso unificado y cierre del checklist con una experiencia celebratoria más clara.
+- Protección de datos sensibles de acciones del checklist antes de persistirlos.
+
+### Verificado
+
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción finalizan correctamente.
+
 ## [0.6.1] - 2026-08-13
 
 ### Corregido

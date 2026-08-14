@@ -95,6 +95,7 @@ export default function DelegationModalV2({
 
   const ready = Boolean(prerequisites?.ready);
   const selectedCard = cards.find((card) => card.id === cardId);
+  const currentStage = !ready ? 1 : !data?.delegation ? 2 : data.delegation.status === 'awaiting_payment' ? 3 : 4;
 
   const confirmPayment = async () => {
     if (!cardId || !selectedCard) return;
@@ -140,6 +141,17 @@ export default function DelegationModalV2({
           <LoaderCircle className="mx-auto my-16 animate-spin text-blue-600" />
         ) : (
           <div className="space-y-5 p-5 sm:p-7">
+            <nav aria-label="Etapas de la delegación" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[['Preparación', 1], ['Asesor', 2], ['Pago', 3], ['Seguimiento', 4]].map(([label, value]) => {
+                const stage = Number(value);
+                const completed = stage < currentStage;
+                const active = stage === currentStage;
+                return <div key={String(label)} className={`rounded-2xl border px-3 py-3 ${active ? 'border-violet-300 bg-violet-50 text-violet-800' : completed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                  <span className={`grid size-7 place-items-center rounded-full text-[11px] font-black ${active ? 'bg-violet-700 text-white' : completed ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}`}>{completed ? <CheckCircle2 size={15}/> : stage}</span>
+                  <strong className="mt-2 block text-xs">{label}</strong>
+                </div>;
+              })}
+            </nav>
             <section className={`rounded-3xl border p-5 ${ready ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <div className="flex items-start gap-3">
                 {ready ? <CheckCircle2 className="shrink-0 text-emerald-600" /> : <LockKeyhole className="shrink-0 text-amber-700" />}

@@ -45,7 +45,7 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 
 ### Demostrativo o pendiente
 
-> Actualización 0.6.0: el inicio, checklist secuencial, acciones fechadas y avance se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago de prueba, conversación y seguimiento.
+> Actualización 0.7.0: el inicio, checklist secuencial, acciones fechadas y avance se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs en producción y almacenamiento local persistente durante el desarrollo, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago de prueba, conversación y seguimiento.
 
 Los pagos y devoluciones continúan siendo exclusivamente simulados: no existe movimiento financiero real ni se almacenan PAN o CVV.
 
