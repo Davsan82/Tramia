@@ -51,6 +51,10 @@ type Payload = {
   }>;
   generatedAt: string;
 };
+type AdminModule = "dashboard" | "catalog" | "users" | "contact" | "operations" | "advisors" | "audit" | "settings" | "finance";
+const adminContentModules: Exclude<AdminModule, "dashboard">[] = [
+  "catalog", "operations", "advisors", "users", "contact", "finance", "settings", "audit",
+];
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("es-PE", {
     day: "2-digit",
@@ -64,21 +68,14 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [authRequired, setAuthRequired] = useState(false);
-  const [module, setModule] = useState<
-    | "dashboard"
-    | "catalog"
-    | "users"
-    | "contact"
-    | "operations"
-    | "advisors"
-    | "audit"
-    | "settings"
-    | "finance"
-  >(() => {
+  const [module, setModule] = useState<AdminModule>(() => {
     const requested = new URLSearchParams(location.search).get("module");
     const allowed = ["dashboard", "catalog", "users", "contact", "operations", "advisors", "audit", "settings", "finance"] as const;
     return allowed.includes(requested as typeof allowed[number]) ? requested as typeof allowed[number] : "dashboard";
   });
+  const [visitedModules, setVisitedModules] = useState<Set<Exclude<AdminModule, "dashboard">>>(
+    () => module === "dashboard" ? new Set() : new Set([module]),
+  );
   const load = async () => {
     setLoading(true);
     setError("");
@@ -110,6 +107,10 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
       "",
       module === "dashboard" ? "/admin" : `/admin?module=${module}`,
     );
+  }, [module]);
+  useEffect(() => {
+    if (module === "dashboard") return;
+    setVisitedModules((current) => current.has(module) ? current : new Set([...current, module]));
   }, [module]);
   if (authRequired)
     return <AdminLoginView onSuccess={() => void load()} onExit={onExit} />;
@@ -151,23 +152,18 @@ export default function AdminDashboardView({ onExit }: { onExit: () => void }) {
         </header>
         <main className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
           <AdminModuleNav active={module} change={setModule} />
-          {module === "catalog" ? (
-            <AdminCatalogView />
-          ) : module === "users" ? (
-            <AdminUsersView />
-          ) : module === "contact" ? (
-            <AdminContactView />
-          ) : module === "operations" ? (
-            <AdminOperationsView />
-          ) : module === "audit" ? (
-            <AdminAuditView />
-          ) : module === "settings" ? (
-            <AdminSettingsView />
-          ) : module === "finance" ? (
-            <AdminFinanceView />
-          ) : (
-            <AdminAdvisorsView />
-          )}
+          {adminContentModules.map((item) => {
+            if (!visitedModules.has(item)) return null;
+            const content = item === "catalog" ? <AdminCatalogView />
+              : item === "users" ? <AdminUsersView />
+              : item === "contact" ? <AdminContactView />
+              : item === "operations" ? <AdminOperationsView />
+              : item === "audit" ? <AdminAuditView />
+              : item === "settings" ? <AdminSettingsView />
+              : item === "finance" ? <AdminFinanceView />
+              : <AdminAdvisorsView />;
+            return <div key={item} className={module === item ? "block" : "hidden"} aria-hidden={module !== item}>{content}</div>;
+          })}
         </main>
       </div>
     );

@@ -13,6 +13,27 @@ import { readDocument, removeDocument, saveDocument } from './server/services/do
 
 export const app = express();
 
+// Express 4 no propaga automáticamente los rechazos de handlers async.
+// Así un error transitorio responde con JSON sin terminar el servidor.
+type ExpressHandler = (...args: any[]) => any;
+const wrapAsyncHandler = (handler: ExpressHandler) => {
+  if (typeof handler !== 'function' || handler.length === 4) return handler;
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const result = handler(req, res, next);
+      if (result && typeof result.then === 'function') result.catch(next);
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+for (const method of ['get', 'post', 'put', 'patch', 'delete'] as const) {
+  const register = app[method].bind(app) as (...args: any[]) => any;
+  (app as any)[method] = (path: any, ...handlers: ExpressHandler[]) =>
+    register(path, ...handlers.map(wrapAsyncHandler));
+}
+
 app.use(express.json({ limit: "15mb" }));
 
 const resolveAvatarUrl = (storedValue: string | null | undefined, userId: string) => {
@@ -31,6 +52,7 @@ const publicUser = (user: typeof users.$inferSelect, profile: typeof userProfile
   avatarUrl: resolveAvatarUrl(profile?.avatarUrl, user.id),
   roles: roleCodes,
 });
+
 const getUserRoleCodes = async (userId: string) => (await getDrizzleDatabase().select({ code: roles.code }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(userRoles.userId, userId))).map((item) => item.code);
 const requireAdministrator = async (req: express.Request, res: express.Response) => {
   const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
@@ -567,7 +589,7 @@ app.get('/api/v1/admin/ratings',async(req,res)=>{const admin=await requireAdmini
 
 app.delete('/api/v1/admin/ratings/:id',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const reason=String(req.body?.reason||'').trim();if(reason.length<8)return res.status(400).json({error:'reason_required'});const [removed]=await getDrizzleDatabase().delete(ratings).where(eq(ratings.id,req.params.id)).returning();if(!removed)return res.status(404).json({error:'rating_not_found'});await writeAdminAudit(admin.user.id,'admin.rating.removed',{ratingId:removed.id,reason},req);res.status(204).end();});
 
-app.get('/api/v1/admin/reports/overview',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const db=getDrizzleDatabase();const [paymentsReport,ratingsReport,ratingDistribution,advisorReport,documentsReport,proceduresReport,usersReport]=await Promise.all([db.select({count:sql<number>`count(*)::int`,approved:sql<number>`count(*) filter(where ${paymentOrders.status}='paid')::int`,pending:sql<number>`count(*) filter(where ${paymentOrders.status} in ('created','pending','authorized'))::int`,refunded:sql<number>`count(*) filter(where ${paymentOrders.status} in ('refunded','partially_refunded'))::int`,amount:sql<number>`coalesce(sum(${paymentOrders.amountMinor}) filter(where ${paymentOrders.status}='paid'),0)::int`}).from(paymentOrders),db.select({count:sql<number>`count(*)::int`,average:sql<string>`coalesce(round(avg(${ratings.rating})::numeric,2),0)`}).from(ratings),db.select({rating:ratings.rating,count:sql<number>`count(*)::int`}).from(ratings).groupBy(ratings.rating).orderBy(ratings.rating),db.select({total:sql<number>`count(*)::int`,available:sql<number>`count(*) filter(where ${advisorProfiles.availabilityStatus}='available')::int`,activeCases:sql<number>`coalesce(sum(${advisorProfiles.activeCasesCount}),0)::int`,capacity:sql<number>`coalesce(sum(${advisorProfiles.maxActiveCases}),0)::int`}).from(advisorProfiles),db.select({total:sql<number>`count(*)::int`,pending:sql<number>`count(*) filter(where ${uploadedDocuments.status}='pending')::int`,approved:sql<number>`count(*) filter(where ${uploadedDocuments.status}='approved')::int`,rejected:sql<number>`count(*) filter(where ${uploadedDocuments.status}='rejected')::int`}).from(uploadedDocuments).where(isNull(uploadedDocuments.deletedAt)),db.select({total:sql<number>`count(*)::int`,active:sql<number>`count(*) filter(where ${userProcedures.status} in ('active','in_progress','waiting_user','waiting_payment','waiting_assignment','delegated'))::int`,completed:sql<number>`count(*) filter(where ${userProcedures.status}='completed')::int`}).from(userProcedures),db.select({total:sql<number>`count(*)::int`,verified:sql<number>`count(*) filter(where ${users.emailVerifiedAt} is not null)::int`}).from(users)]);res.json({generatedAt:new Date().toISOString(),payments:paymentsReport[0],ratings:{...ratingsReport[0],distribution:ratingDistribution},advisors:advisorReport[0],documents:documentsReport[0],procedures:proceduresReport[0],users:usersReport[0]});});
+app.get('/api/v1/admin/reports/overview',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const db=getDrizzleDatabase();const [paymentsReport,ratingsReport,ratingDistribution,advisorReport,documentsReport,proceduresReport,usersReport]=await Promise.all([db.select({count:sql<number>`count(*)::int`,approved:sql<number>`count(*) filter(where ${paymentOrders.status}='paid')::int`,pending:sql<number>`count(*) filter(where ${paymentOrders.status} in ('created','pending','authorized'))::int`,refunded:sql<number>`count(*) filter(where ${paymentOrders.status} in ('refunded','partially_refunded'))::int`,amount:sql<number>`coalesce(sum(${paymentOrders.amountMinor}) filter(where ${paymentOrders.status}='paid'),0)::int`}).from(paymentOrders),db.select({count:sql<number>`count(*)::int`,average:sql<string>`coalesce(round(avg(${ratings.rating})::numeric,2),0)`}).from(ratings),db.select({rating:ratings.rating,count:sql<number>`count(*)::int`}).from(ratings).groupBy(ratings.rating).orderBy(ratings.rating),db.select({total:sql<number>`count(*)::int`,available:sql<number>`count(*) filter(where ${advisorProfiles.availabilityStatus}='available')::int`,activeCases:sql<number>`coalesce(sum(${advisorProfiles.activeCasesCount}),0)::int`,capacity:sql<number>`coalesce(sum(${advisorProfiles.maxActiveCases}),0)::int`}).from(advisorProfiles),db.select({total:sql<number>`count(*)::int`,pending:sql<number>`count(*) filter(where ${uploadedDocuments.status}='pending')::int`,approved:sql<number>`count(*) filter(where ${uploadedDocuments.status}='approved')::int`,rejected:sql<number>`count(*) filter(where ${uploadedDocuments.status} in ('correction_required','error'))::int`}).from(uploadedDocuments).where(isNull(uploadedDocuments.deletedAt)),db.select({total:sql<number>`count(*)::int`,active:sql<number>`count(*) filter(where ${userProcedures.status} in ('active','in_progress','waiting_user','waiting_payment','waiting_assignment','delegated'))::int`,completed:sql<number>`count(*) filter(where ${userProcedures.status}='completed')::int`}).from(userProcedures),db.select({total:sql<number>`count(*)::int`,verified:sql<number>`count(*) filter(where ${users.emailVerifiedAt} is not null)::int`}).from(users)]);res.json({generatedAt:new Date().toISOString(),payments:paymentsReport[0],ratings:{...ratingsReport[0],distribution:ratingDistribution},advisors:advisorReport[0],documents:documentsReport[0],procedures:proceduresReport[0],users:usersReport[0]});});
 
 app.get('/api/v1/admin/audit-events',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const db=getDrizzleDatabase(),q=String(req.query.q||'').trim().toLowerCase();const events=await db.select({id:auditEvents.id,eventName:auditEvents.eventName,eventData:auditEvents.eventData,ipHash:auditEvents.ipHash,createdAt:auditEvents.createdAt,actorUserId:auditEvents.actorUserId,actorUsername:users.username,actorEmail:users.email}).from(auditEvents).leftJoin(users,eq(auditEvents.actorUserId,users.id)).where(q?sql`lower(${auditEvents.eventName}) like ${`%${q}%`} or lower(coalesce(${users.username},'')) like ${`%${q}%`} or lower(coalesce(${users.email},'')) like ${`%${q}%`}`:undefined).orderBy(desc(auditEvents.createdAt)).limit(500);res.json({events});});
 
@@ -1052,4 +1074,18 @@ Realiza la auditoría detallada y genera la respuesta JSON con:
       error: error.message || "Error al procesar la validación con IA",
     });
   }
+});
+
+// Mantener este middleware al final de las rutas API.
+app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const detail = error instanceof Error
+    ? [error.message, (error as Error & { cause?: unknown }).cause instanceof Error ? (error as Error & { cause: Error }).cause.message : ''].filter(Boolean).join(' | ')
+    : String(error);
+  console.error('[api-error]', { method: req.method, path: req.originalUrl, detail });
+  if (res.headersSent) return;
+  res.status(500).json({
+    error: 'internal_error',
+    message: 'No pudimos completar la operación. Inténtalo nuevamente.',
+    ...(process.env.NODE_ENV !== 'production' ? { detail } : {}),
+  });
 });

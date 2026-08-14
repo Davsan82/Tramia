@@ -7,6 +7,19 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-13
+
+### Corregido
+
+- Indicadores administrativos alineados con los estados reales de validación documental en Neon.
+- Captura centralizada de errores asíncronos para impedir que un fallo transitorio cierre el servidor.
+- Navegación estable por todos los módulos administrativos, incluidos Delegaciones, Pagos simulados y Calificaciones.
+
+### Mejorado
+
+- Conservación de datos, filtros y estado al regresar a módulos administrativos ya visitados.
+- Respuestas JSON controladas ante errores internos, con detalles técnicos disponibles solo en desarrollo.
+
 ## [0.6.0] - 2026-08-13
 
 ### Agregado
