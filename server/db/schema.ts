@@ -562,3 +562,51 @@ export const auditEvents = pgTable('audit_events', {
   ipHash: varchar('ip_hash', { length: 128 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index('audit_events_case_idx').on(table.userProcedureId, table.createdAt)]);
+
+export const aiSearchEvents = pgTable('ai_search_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  originalQuery: varchar('original_query', { length: 300 }).notNull(),
+  searchTerms: jsonb('search_terms').$type<string[]>().notNull().default([]),
+  suggestedCategory: varchar('suggested_category', { length: 160 }),
+  confidence: integer('confidence').notNull().default(0),
+  mode: varchar('mode', { length: 20 }).notNull(),
+  model: varchar('model', { length: 80 }),
+  latencyMs: integer('latency_ms').notNull().default(0),
+  errorCode: varchar('error_code', { length: 80 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ai_search_events_created_idx').on(table.createdAt),
+  index('ai_search_events_user_idx').on(table.userId, table.createdAt),
+  check('ai_search_events_confidence_check', sql`${table.confidence} between 0 and 100`),
+  check('ai_search_events_mode_check', sql`${table.mode} in ('ai', 'fallback')`),
+]);
+
+export const aiChatConversations = pgTable('ai_chat_conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  visitorKeyHash: varchar('visitor_key_hash', { length: 64 }),
+  procedureId: uuid('procedure_id').references(() => procedures.id, { onDelete: 'set null' }),
+  userProcedureId: uuid('user_procedure_id').references(() => userProcedures.id, { onDelete: 'cascade' }),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps,
+}, (table) => [
+  index('ai_chat_conversations_user_idx').on(table.userId, table.lastMessageAt),
+  index('ai_chat_conversations_visitor_idx').on(table.visitorKeyHash, table.lastMessageAt),
+  index('ai_chat_conversations_case_idx').on(table.userProcedureId, table.lastMessageAt),
+  check('ai_chat_conversations_owner_check', sql`${table.userId} is not null or ${table.visitorKeyHash} is not null`),
+]);
+
+export const aiChatMessages = pgTable('ai_chat_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').notNull().references(() => aiChatConversations.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(),
+  content: text('content').notNull(),
+  inScope: boolean('in_scope').notNull().default(true),
+  model: varchar('model', { length: 80 }),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ai_chat_messages_conversation_idx').on(table.conversationId, table.createdAt),
+  check('ai_chat_messages_role_check', sql`${table.role} in ('user', 'assistant')`),
+]);

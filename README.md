@@ -49,6 +49,13 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - El asesor elegido queda asignado automáticamente luego del pago ficticio aprobado.
 - El asesor solo puede completar el siguiente paso pendiente; no puede editar porcentajes ni saltarse la secuencia.
 
+### TramIA Bot
+
+- Responde con OpenAI usando contexto seleccionado por el servidor desde Neon: catálogo, entidad, requisitos, pasos, asesores y, cuando corresponde, el estado de la gestión del usuario autenticado.
+- No recibe acceso directo a SQL ni datos sensibles como DNI completo, tarjetas, documentos, contraseñas o credenciales de entidades.
+- Conserva hasta 40 mensajes por conversación en `ai_chat_conversations` y `ai_chat_messages`; cada historial valida al propietario autenticado o el identificador anónimo del navegador.
+- Se limita a trámites y servicios de TramIA. Las consultas ajenas al dominio reciben una negativa breve y una invitación a consultar sobre trámites.
+
 ### Demostrativo o pendiente
 
 > Actualización 0.7.0: el inicio, checklist secuencial, acciones fechadas y avance se persisten en Neon. Las fotos y documentos binarios usan Netlify Blobs en producción y almacenamiento local persistente durante el desarrollo, mientras PostgreSQL conserva sus metadatos. La delegación exige los pasos personales configurados y registra asesor, pago de prueba, conversación y seguimiento.
@@ -118,7 +125,7 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
-La versión 0.10.2 muestra en la selección de modalidad el precio mínimo real de los asesores verificados y disponibles, y simplifica la presentación de la opción delegada. También conserva las mejoras del portal del asesor y el acceso rápido a Visa Americana incorporados en la versión anterior. Consulta el historial completo en [CHANGELOG.md](CHANGELOG.md).
+La versión 0.11.0 integra TramIA Bot con OpenAI, contexto seguro seleccionado desde Neon, historial persistente y límites temáticos. También incorpora la interpretación inteligente del buscador y conserva las mejoras operativas de las versiones anteriores. Consulta el historial completo en [CHANGELOG.md](CHANGELOG.md).
 
 ### Requisitos
 
@@ -151,6 +158,9 @@ MAIL_FROM="TramIA Soporte <correo@gmail.com>"
 SUPPORT_EMAIL="correo@gmail.com"
 PERUDEVS_API_KEY="TOKEN_PRIVADO"
 PERUDEVS_BASE_URL="https://api.perudevs.com/api/v1"
+OPENAI_API_KEY="CLAVE_PRIVADA_DE_OPENAI"
+OPENAI_SEARCH_MODEL="gpt-5.4-nano"
+OPENAI_CHAT_MODEL="gpt-5.4-nano"
 ```
 
 Inicia la aplicación:
@@ -204,6 +214,9 @@ Variables privadas requeridas en Netlify:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_APP_PASSWORD`
 - `MAIL_FROM`, `SUPPORT_EMAIL`
 - `PERUDEVS_API_KEY`, `PERUDEVS_BASE_URL`
+- `OPENAI_API_KEY` para activar la interpretación inteligente del buscador y TramIA Bot.
+- `OPENAI_SEARCH_MODEL` es opcional; usa `gpt-5.4-nano` si no se define.
+- `OPENAI_CHAT_MODEL` es opcional; TramIA Bot usa `OPENAI_SEARCH_MODEL` como respaldo.
 
 Cuando un commit agregue una variable o migración, debe indicarse expresamente en las notas de entrega. Los cambios que solo modifican frontend o lógica existente se publican sin configuración manual adicional.
 

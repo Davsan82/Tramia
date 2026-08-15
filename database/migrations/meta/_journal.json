@@ -71,6 +71,20 @@
       "when": 1786685844049,
       "tag": "0009_colorful_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786775022951,
+      "tag": "0010_perpetual_gladiator",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786779522099,
+      "tag": "0011_right_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

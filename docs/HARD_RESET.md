@@ -19,6 +19,8 @@ El **Hard reset** deja las interacciones de TramIA en estado inicial sin elimina
 - documentos y validaciones registradas en PostgreSQL;
 - calificaciones, conversaciones y notificaciones;
 - mensajes y notas del formulario de contacto;
+- consultas e interpretaciones del buscador inteligente;
+- conversaciones y mensajes persistidos de TramIA Bot;
 - estadísticas operativas acumuladas de los asesores.
 
 El proceso elimina referencias de documentos en PostgreSQL. No borra archivos huérfanos directamente del proveedor de object storage.

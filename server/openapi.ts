@@ -2,7 +2,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'TramIA API',
-    version: '0.10.0',
+    version: '0.11.0',
     description: 'API pública versionada para el catálogo y los futuros expedientes de TramIA.',
   },
   servers: [
@@ -10,6 +10,7 @@ export const openApiDocument = {
   ],
   tags: [
     { name: 'Sistema' },
+    { name: 'Inteligencia artificial' },
     { name: 'Catálogo' },
     { name: 'Gestiones' },
     { name: 'Asesores' },
@@ -22,6 +23,9 @@ export const openApiDocument = {
     { name: 'Pagos simulados' },
   ],
   paths: {
+    '/v1/ai/chat': { post:{tags:['Inteligencia artificial'],summary:'Conversar con TramIA Bot usando contexto seguro de Neon',description:'Responde exclusivamente sobre trámites y servicios de TramIA. El servidor selecciona el contexto autorizado y persiste un historial limitado; el modelo no tiene acceso directo a SQL ni a datos sensibles.',requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['message'],properties:{message:{type:'string',minLength:2,maxLength:1000},conversationId:{type:'string',format:'uuid'},procedureSlug:{type:'string'},userProcedureId:{type:'string',format:'uuid'},visitorKey:{type:'string'}}}}}},responses:{'200':{description:'Respuesta contextual y sugerencias'},'400':{description:'Mensaje inválido'},'403':{description:'Conversación o gestión no autorizada'},'429':{description:'Límite temporal alcanzado'},'503':{description:'Servicio de IA no disponible'}}} },
+    '/v1/ai/chat/{conversationId}': { get:{tags:['Inteligencia artificial'],summary:'Recuperar el historial reciente de TramIA Bot',parameters:[{name:'conversationId',in:'path',required:true,schema:{type:'string',format:'uuid'}},{name:'X-TramIA-Visitor',in:'header',required:false,schema:{type:'string'},description:'Identificador local para conversaciones anónimas.'}],responses:{'200':{description:'Hasta 40 mensajes recientes'},'403':{description:'Conversación no autorizada'},'404':{description:'Conversación no encontrada'}}} },
+    '/v1/ai/search/interpret': { post:{tags:['Inteligencia artificial'],summary:'Convertir una necesidad ciudadana en una palabra clave y categoría del catálogo',description:'Usa OpenAI cuando está configurado y conserva una interpretación determinística como respaldo. No ejecuta consultas SQL generadas por el modelo.',requestBody:{required:true,content:{'application/json':{schema:{type:'object',required:['query'],properties:{query:{type:'string',minLength:3,maxLength:300}}}}}},responses:{'200':{description:'Interpretación segura de la búsqueda'},'400':{description:'Consulta inválida'}}} },
     '/v1/payments/{id}/receipt.pdf': { get:{tags:['Pagos simulados'],summary:'Descargar la boleta de venta de un pago confirmado',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Comprobante PDF'},'404':{description:'Pago no encontrado'},'409':{description:'Pago todavía no confirmado'}}} },
     '/v1/my-procedures/{id}/delegated-tracking': { get:{tags:['Gestiones'],summary:'Consultar el avance de solo lectura de una gestión delegada',responses:{'200':{description:'Caso, asesor asignado y secuencia de pasos'},'409':{description:'Delegación sin pago confirmado'}}} },
     '/v1/advisor/cases/{id}/steps/{stepInstanceId}/complete': { post:{tags:['Asesores'],summary:'Completar en orden el siguiente paso de una gestión delegada',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}},{name:'stepInstanceId',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Avance actualizado y ciudadano notificado'},'409':{description:'Existe un paso anterior pendiente'}}} },

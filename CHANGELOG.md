@@ -7,6 +7,32 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-15
+
+### Agregado
+
+- TramIA Bot conectado a OpenAI mediante Responses API con respuestas contextuales sobre el trámite consultado, su ruta, requisitos, asesores y el catálogo disponible.
+- Persistencia limitada del historial en Neon mediante `ai_chat_conversations` y `ai_chat_messages`, con recuperación de los últimos 40 mensajes.
+- Contexto de la gestión activa para usuarios autenticados, incluyendo avance, siguiente paso y asesor asignado, siempre con validación de propiedad en el servidor.
+- Endpoints documentados para conversar y recuperar el historial protegido del bot.
+
+### Seguridad
+
+- Restricción temática para rechazar consultas ajenas a trámites y servicios de TramIA.
+- Selección del contexto exclusivamente en el servidor: el modelo no accede a SQL ni recibe DNI completo, tarjetas, documentos, contraseñas o credenciales de entidades.
+- Límite temporal de solicitudes, aislamiento de conversaciones y envío del identificador anónimo mediante cabecera HTTP.
+- Las conversaciones del bot se incluyen en el hard reset administrativo.
+
+### Mejorado
+
+- Buscador inteligente con coincidencia aproximada y auditoría de posibles trámites duplicados.
+- Interfaz responsive de TramIA Bot con historial, estados de carga, errores recuperables, preguntas sugeridas y reinicio de conversación.
+
+### Verificado
+
+- Respuesta contextual de Visa B1/B2, consulta cruzada sobre RUC, rechazo de temas ajenos, persistencia y aislamiento del historial.
+- TypeScript, Drizzle, control de secretos, UTF-8, build de producción y smoke tests de API finalizan correctamente.
+
 ## [0.10.3] - 2026-08-15
 
 ### Agregado

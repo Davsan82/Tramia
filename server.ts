@@ -7,10 +7,12 @@ import { openApiDocument } from './server/openapi';
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { getDrizzleDatabase } from './server/db/client';
-import { advisorAssignments, advisorExpertise, advisorProfiles, appSettings, auditEvents, authSessions, authTokens, contactMessageNotes, contactMessages, delegationRequests, documentValidations, expertiseAreas, notifications, organizations, paymentOrders, paymentTransactions, procedureCategories, procedureMessages, procedureRequirements, procedureSources, procedureStatusHistory, procedureSteps, procedureVersions, procedures, ratings, roles, simulatedPaymentMethods, uploadedDocuments, userProcedureRequirements, userProcedures, userProcedureSteps, userProfiles, userRoles, users } from './server/db/schema';
+import { advisorAssignments, advisorExpertise, advisorProfiles, aiChatConversations, aiChatMessages, aiSearchEvents, appSettings, auditEvents, authSessions, authTokens, contactMessageNotes, contactMessages, delegationRequests, documentValidations, expertiseAreas, notifications, organizations, paymentOrders, paymentTransactions, procedureCategories, procedureMessages, procedureRequirements, procedureSources, procedureStatusHistory, procedureSteps, procedureVersions, procedures, ratings, roles, simulatedPaymentMethods, uploadedDocuments, userProcedureRequirements, userProcedures, userProcedureSteps, userProfiles, userRoles, users } from './server/db/schema';
 import { SESSION_COOKIE, consumeAuthToken, createSession, encryptPrivateValue, findSession, findUserByIdentifier, hashPassword, inspectAuthToken, issueAuthToken, parseCookie, sendAccountEmail, sendContactEmail, tokenHash, verifyPassword } from './server/services/auth';
 import { readDocument, removeDocument, saveDocument } from './server/services/document-storage';
 import { createPaymentReceiptPdf } from './server/services/payment-receipt';
+import { interpretSearchWithOpenAI } from './server/services/intelligent-search';
+import { answerWithTramIABot, buildTramIABotContext } from './server/services/tramia-bot';
 import { isValidPhone, phoneLengthMessage, splitStoredPhone } from './shared/phone';
 
 export const app = express();
@@ -218,7 +220,44 @@ app.patch('/api/v1/profile', async (req, res) => {
   return res.json({ contact: { phone: user.phone || '', address: profile.address || '', department: profile.department || '', province: profile.province || '', district: profile.district || '' } });
 });
 
-app.post('/api/v1/profile/avatar',async(req,res)=>{const session=await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);if(!session)return res.status(401).json({error:'authentication_required'});const mimeType=String(req.body.mimeType||''),content=String(req.body.contentBase64||'');if(!['image/jpeg','image/png','image/webp'].includes(mimeType))return res.status(400).json({error:'invalid_avatar',message:'Usa una imagen JPG, PNG o WebP.'});const data=Buffer.from(content,'base64');if(!data.length||data.length>3*1024*1024)return res.status(400).json({error:'invalid_avatar_size',message:'La foto debe pesar como máximo 3 MB.'});const key=`avatars/${session.user.id}/${crypto.randomUUID()}`,provider=await saveDocument(key,data,mimeType),avatarUrl=`/api/v1/profile/avatar/${session.user.id}`;const [previous]=await getDrizzleDatabase().select({avatarUrl:userProfiles.avatarUrl}).from(userProfiles).where(eq(userProfiles.userId,session.user.id)).limit(1);await getDrizzleDatabase().update(userProfiles).set({avatarUrl:`${provider}:${key}`,updatedAt:new Date()}).where(eq(userProfiles.userId,session.user.id));if(previous?.avatarUrl?.includes(':'))await removeDocument(previous.avatarUrl.split(':').slice(1).join(':'));res.json({avatarUrl});});
+app.post('/api/v1/profile/avatar', async (req, res) => {
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]);
+  if (!session) return res.status(401).json({ error: 'authentication_required' });
+
+  const mimeType = String(req.body.mimeType || '');
+  const content = String(req.body.contentBase64 || '');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+    return res.status(400).json({ error: 'invalid_avatar', message: 'Usa una imagen JPG, PNG o WebP.' });
+  }
+
+  const data = Buffer.from(content, 'base64');
+  if (!data.length || data.length > 3 * 1024 * 1024) {
+    return res.status(400).json({ error: 'invalid_avatar_size', message: 'La foto debe pesar como máximo 3 MB.' });
+  }
+
+  const db = getDrizzleDatabase();
+  const key = `avatars/${session.user.id}/${crypto.randomUUID()}`;
+  const provider = await saveDocument(key, data, mimeType);
+  const [previous] = await db.select({ avatarUrl: userProfiles.avatarUrl })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, session.user.id))
+    .limit(1);
+  const [updated] = await db.update(userProfiles)
+    .set({ avatarUrl: `${provider}:${key}`, updatedAt: new Date() })
+    .where(eq(userProfiles.userId, session.user.id))
+    .returning({ avatarUrl: userProfiles.avatarUrl });
+
+  if (!updated) {
+    await removeDocument(key).catch(() => undefined);
+    return res.status(409).json({ error: 'profile_not_found', message: 'No pudimos asociar la foto con tu perfil.' });
+  }
+
+  if (previous?.avatarUrl?.includes(':')) {
+    await removeDocument(previous.avatarUrl.split(':').slice(1).join(':')).catch(() => undefined);
+  }
+
+  return res.json({ avatarUrl: `/api/v1/profile/avatar/${session.user.id}` });
+});
 
 app.get('/api/v1/profile/avatar/:userId',async(req,res)=>{const [profile]=await getDrizzleDatabase().select({avatarUrl:userProfiles.avatarUrl}).from(userProfiles).where(eq(userProfiles.userId,req.params.userId)).limit(1);if(!profile?.avatarUrl?.includes(':'))return res.status(404).end();const stored=await readDocument(profile.avatarUrl.split(':').slice(1).join(':'));if(!stored)return res.status(404).end();res.setHeader('Content-Type',stored.contentType);res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('X-Content-Type-Options','nosniff');res.send(stored.data);});
 
@@ -403,6 +442,165 @@ const defaultLandingSettings={showTestimonials:true,showTrustBar:true,showLifeMo
 app.get('/api/v1/public/settings',async(_req,res)=>{const rows=await getDrizzleDatabase().select().from(appSettings).where(eq(appSettings.isPublic,true));const settings=Object.fromEntries(rows.map(item=>[item.key,item.value]));res.json({settings:{...settings,contact:{...defaultContactSettings,...(settings.contact as object||{})},landing:{...defaultLandingSettings,...(settings.landing as object||{})}}});});
 
 app.get('/api/v1/public/advisors/pricing',async(_req,res)=>{const [pricing]=await getDrizzleDatabase().select({fromAmountMinor:sql<number|null>`min(${advisorProfiles.baseFeeMinor})::int`,availableAdvisors:sql<number>`count(*)::int`}).from(advisorProfiles).where(and(eq(advisorProfiles.verificationStatus,'verified'),eq(advisorProfiles.availabilityStatus,'available'),sql`${advisorProfiles.activeCasesCount}<${advisorProfiles.maxActiveCases}`,sql`${advisorProfiles.baseFeeMinor}>0`));res.json({pricing:{fromAmountMinor:pricing?.fromAmountMinor??null,currency:'PEN',availableAdvisors:pricing?.availableAdvisors??0}});});
+app.post('/api/v1/ai/search/interpret', async (req, res) => {
+  const query = normalizeHumanText(req.body.query);
+  if (query.length < 3 || query.length > 300) return res.status(400).json({ error: 'invalid_search_query', message: 'Escribe una búsqueda de 3 a 300 caracteres.' });
+
+  const db = getDrizzleDatabase();
+  const categoryRows = await db.select({ name: procedureCategories.name }).from(procedureCategories).where(eq(procedureCategories.isActive, true)).orderBy(asc(procedureCategories.position));
+  const categories = categoryRows.map((item) => item.name);
+  const interpretation = await interpretSearchWithOpenAI(query, categories);
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]).catch(() => null);
+
+  await db.insert(aiSearchEvents).values({
+    userId: session?.user.id || null,
+    originalQuery: query,
+    searchTerms: interpretation.terms,
+    suggestedCategory: interpretation.category,
+    confidence: interpretation.confidence,
+    mode: interpretation.mode,
+    model: interpretation.model,
+    latencyMs: interpretation.latencyMs,
+    errorCode: interpretation.errorCode,
+  }).catch((error) => console.error('[ai-search-log]', error));
+
+  return res.json({ interpretation: { terms: interpretation.terms, category: interpretation.category, confidence: interpretation.confidence, mode: interpretation.mode } });
+});
+
+const botRateLimits = new Map<string, { startedAt: number; count: number }>();
+const allowBotRequest = (key: string) => {
+  const now = Date.now();
+  const current = botRateLimits.get(key);
+  if (!current || now - current.startedAt > 60_000) {
+    botRateLimits.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  if (current.count >= 12) return false;
+  current.count += 1;
+  return true;
+};
+const botVisitorHash = (visitorKey: string) => createHash('sha256').update(visitorKey).digest('hex');
+
+app.get('/api/v1/ai/chat/:conversationId', async (req, res) => {
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]).catch(() => null);
+  const visitorKey = normalizeHumanText(req.get('x-tramia-visitor') || req.query.visitorKey);
+  const db = getDrizzleDatabase();
+  const [conversation] = await db.select().from(aiChatConversations).where(eq(aiChatConversations.id, req.params.conversationId)).limit(1);
+  if (!conversation) return res.status(404).json({ error: 'conversation_not_found', message: 'Esta conversación ya no está disponible.' });
+  const isOwner = Boolean(session?.user.id && conversation.userId === session.user.id)
+    || Boolean(!conversation.userId && visitorKey && conversation.visitorKeyHash === botVisitorHash(visitorKey));
+  if (!isOwner) return res.status(403).json({ error: 'conversation_forbidden', message: 'No puedes consultar esta conversación.' });
+  const messages = await db.select({
+    id: aiChatMessages.id,
+    role: aiChatMessages.role,
+    content: aiChatMessages.content,
+    inScope: aiChatMessages.inScope,
+    createdAt: aiChatMessages.createdAt,
+  }).from(aiChatMessages)
+    .where(eq(aiChatMessages.conversationId, conversation.id))
+    .orderBy(desc(aiChatMessages.createdAt))
+    .limit(40);
+  return res.json({ conversationId: conversation.id, messages: messages.reverse() });
+});
+
+app.post('/api/v1/ai/chat', async (req, res) => {
+  const message = normalizeHumanText(req.body.message);
+  const visitorKey = normalizeHumanText(req.body.visitorKey);
+  const requestedConversationId = normalizeHumanText(req.body.conversationId);
+  const requestedProcedureSlug = normalizeHumanText(req.body.procedureSlug);
+  const requestedCaseId = normalizeHumanText(req.body.userProcedureId);
+  if (message.length < 2 || message.length > 1000) {
+    return res.status(400).json({ error: 'invalid_message', message: 'Escribe una consulta de 2 a 1000 caracteres.' });
+  }
+  const session = await findSession(parseCookie(req.headers.cookie)[SESSION_COOKIE]).catch(() => null);
+  if (!session && !/^[a-zA-Z0-9_-]{20,100}$/.test(visitorKey)) {
+    return res.status(400).json({ error: 'visitor_key_required', message: 'Actualiza la página para iniciar una conversación segura.' });
+  }
+  const rateKey = session?.user.id || botVisitorHash(visitorKey || req.ip || 'anonymous');
+  if (!allowBotRequest(rateKey)) {
+    return res.status(429).json({ error: 'rate_limited', message: 'Has enviado varias consultas seguidas. Espera un minuto e inténtalo nuevamente.' });
+  }
+
+  const db = getDrizzleDatabase();
+  let conversation: typeof aiChatConversations.$inferSelect | undefined;
+  let procedureSlug = requestedProcedureSlug;
+  let userProcedureId: string | undefined;
+  if (requestedConversationId) {
+    [conversation] = await db.select().from(aiChatConversations).where(eq(aiChatConversations.id, requestedConversationId)).limit(1);
+    if (!conversation) return res.status(404).json({ error: 'conversation_not_found', message: 'Esta conversación ya no está disponible.' });
+    const isOwner = Boolean(session?.user.id && conversation.userId === session.user.id)
+      || Boolean(!conversation.userId && visitorKey && conversation.visitorKeyHash === botVisitorHash(visitorKey));
+    if (!isOwner) return res.status(403).json({ error: 'conversation_forbidden', message: 'No puedes continuar esta conversación.' });
+    userProcedureId = conversation.userProcedureId || undefined;
+    if (conversation.procedureId) {
+      const [procedureRow] = await db.select({ slug: procedures.slug }).from(procedures).where(eq(procedures.id, conversation.procedureId)).limit(1);
+      procedureSlug = procedureRow?.slug || procedureSlug;
+    }
+  } else {
+    let procedureId: string | null = null;
+    if (requestedProcedureSlug) {
+      const [procedureRow] = await db.select({ id: procedures.id }).from(procedures).where(and(eq(procedures.slug, requestedProcedureSlug), eq(procedures.isActive, true))).limit(1);
+      procedureId = procedureRow?.id || null;
+    }
+    if (requestedCaseId && session) {
+      const [ownedCase] = await db.select({ id: userProcedures.id, procedureId: userProcedures.procedureId }).from(userProcedures)
+        .where(and(eq(userProcedures.id, requestedCaseId), eq(userProcedures.userId, session.user.id))).limit(1);
+      if (ownedCase) {
+        userProcedureId = ownedCase.id;
+        procedureId = ownedCase.procedureId;
+      }
+    }
+    [conversation] = await db.insert(aiChatConversations).values({
+      userId: session?.user.id || null,
+      visitorKeyHash: session ? null : botVisitorHash(visitorKey),
+      procedureId,
+      userProcedureId: userProcedureId || null,
+    }).returning();
+  }
+
+  const storedHistory = await db.select({ role: aiChatMessages.role, content: aiChatMessages.content })
+    .from(aiChatMessages)
+    .where(eq(aiChatMessages.conversationId, conversation.id))
+    .orderBy(desc(aiChatMessages.createdAt))
+    .limit(10);
+  const history = storedHistory.reverse().filter((item): item is { role: 'user' | 'assistant'; content: string } => item.role === 'user' || item.role === 'assistant');
+  const context = await buildTramIABotContext({ procedureSlug, userProcedureId, userId: session?.user.id });
+  try {
+    const answer = await answerWithTramIABot(message, history, context);
+    const now = new Date();
+    const [userMessage, assistantMessage] = await db.transaction(async (tx) => {
+      const inserted = await tx.insert(aiChatMessages).values([
+        { conversationId: conversation.id, role: 'user', content: message, inScope: true, metadata: { source: 'web' } },
+        { conversationId: conversation.id, role: 'assistant', content: answer.answer, inScope: answer.inScope, model: answer.model, metadata: { latencyMs: answer.latencyMs, suggestions: answer.suggestions } },
+      ]).returning();
+      await tx.update(aiChatConversations).set({ lastMessageAt: now, updatedAt: now }).where(eq(aiChatConversations.id, conversation.id));
+      return inserted;
+    });
+    await db.execute(sql`delete from ai_chat_messages
+      where conversation_id = ${conversation.id}
+      and id not in (
+        select id from ai_chat_messages
+        where conversation_id = ${conversation.id}
+        order by created_at desc, id desc
+        limit 40
+      )`).catch((pruneError) => console.error('[tramia-bot-prune]', pruneError));
+    return res.json({
+      conversationId: conversation.id,
+      userMessage,
+      message: assistantMessage,
+      suggestions: answer.suggestions,
+    });
+  } catch (error) {
+    console.error('[tramia-bot]', error instanceof Error ? error.message : error);
+    const unavailable = error instanceof Error && error.message.startsWith('openai_not_configured');
+    return res.status(503).json({
+      error: unavailable ? 'ai_not_configured' : 'ai_unavailable',
+      message: unavailable
+        ? 'TramIA Bot aún no está configurado en este entorno.'
+        : 'TramIA Bot no pudo responder en este momento. Inténtalo nuevamente en unos segundos.',
+    });
+  }
+});
 app.get('/api/v1/admin/settings',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const rows=await getDrizzleDatabase().select().from(appSettings).orderBy(asc(appSettings.key));res.json({settings:rows});});
 app.put('/api/v1/admin/settings/:key',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const key=String(req.params.key).replace(/[^a-z0-9_-]/g,'');if(!key)return res.status(400).json({error:'invalid_setting'});let value=req.body.value&&typeof req.body.value==='object'?{...req.body.value}:{};if(key==='contact'){const email=String(value.email||'').trim().toLowerCase(),phonePrefix=String(value.phonePrefix||'').trim(),phoneNumber=String(value.phoneNumber||'').replace(/\D/g,'');if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'invalid_contact_email',message:'Ingresa un correo electrónico válido.'});if(!/^\+\d{1,4}$/.test(phonePrefix))return res.status(400).json({error:'invalid_phone_prefix',message:'Selecciona un prefijo telefónico válido.'});if(!/^\d{6,15}$/.test(phoneNumber))return res.status(400).json({error:'invalid_contact_phone',message:'Ingresa un teléfono de 6 a 15 dígitos.'});value={...value,email,phonePrefix,phoneNumber,phone:`${phonePrefix} ${phoneNumber}`};}const [saved]=await getDrizzleDatabase().insert(appSettings).values({key,value,isPublic:Boolean(req.body.isPublic),updatedBy:admin.user.id}).onConflictDoUpdate({target:appSettings.key,set:{value,isPublic:Boolean(req.body.isPublic),updatedBy:admin.user.id,updatedAt:new Date()}}).returning();await writeAdminAudit(admin.user.id,'admin.setting.updated',{key},req);res.json({data:saved});});
 
@@ -439,7 +637,7 @@ app.post('/api/v1/admin/hard-reset', async (req, res) => {
   hardResetInProgress = true;
   try {
     const db = getDrizzleDatabase();
-    const [caseCount, paymentCount, ratingCount, contactCount, documentCount, notificationCount, conversationCount, paymentMethodCount] = await Promise.all([
+    const [caseCount, paymentCount, ratingCount, contactCount, documentCount, notificationCount, conversationCount, paymentMethodCount, aiSearchCount, aiChatCount] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(userProcedures),
       db.select({ count: sql<number>`count(*)::int` }).from(paymentOrders),
       db.select({ count: sql<number>`count(*)::int` }).from(ratings),
@@ -448,6 +646,8 @@ app.post('/api/v1/admin/hard-reset', async (req, res) => {
       db.select({ count: sql<number>`count(*)::int` }).from(notifications),
       db.select({ count: sql<number>`count(*)::int` }).from(procedureMessages),
       db.select({ count: sql<number>`count(*)::int` }).from(simulatedPaymentMethods),
+      db.select({ count: sql<number>`count(*)::int` }).from(aiSearchEvents),
+      db.select({ count: sql<number>`count(*)::int` }).from(aiChatConversations),
     ]);
     const deleted = {
       procedures: caseCount[0]?.count || 0,
@@ -458,6 +658,8 @@ app.post('/api/v1/admin/hard-reset', async (req, res) => {
       notifications: notificationCount[0]?.count || 0,
       conversations: conversationCount[0]?.count || 0,
       paymentMethods: paymentMethodCount[0]?.count || 0,
+      aiSearches: aiSearchCount[0]?.count || 0,
+      aiChats: aiChatCount[0]?.count || 0,
     };
 
     await db.transaction(async tx => {
@@ -477,6 +679,9 @@ app.post('/api/v1/admin/hard-reset', async (req, res) => {
       await tx.delete(contactMessageNotes);
       await tx.delete(contactMessages);
       await tx.delete(simulatedPaymentMethods);
+      await tx.delete(aiChatMessages);
+      await tx.delete(aiChatConversations);
+      await tx.delete(aiSearchEvents);
       await tx.update(advisorProfiles).set({ averageRating: '0', completedCasesCount: 0, cancelledCasesCount: 0, activeCasesCount: 0, updatedAt: new Date() });
       await tx.insert(auditEvents).values({
         actorUserId: admin.user.id,
@@ -1026,7 +1231,7 @@ app.post('/api/v1/admin/delegations/:id/assign',async(req,res)=>{const admin=awa
 
 app.patch('/api/v1/admin/delegations/:id/status',async(req,res)=>{const admin=await requireAdministrator(req,res);if(!admin)return;const status=String(req.body.status||''),reason=String(req.body.reason||'').trim();if(!['cancelled','rejected','expired'].includes(status)||reason.length<8)return res.status(400).json({error:'invalid_delegation_status',message:'Selecciona un estado final e indica el motivo.'});const db=getDrizzleDatabase();const [request]=await db.select().from(delegationRequests).where(eq(delegationRequests.id,req.params.id)).limit(1);if(!request)return res.status(404).json({error:'delegation_not_found'});const current=await db.select().from(advisorAssignments).where(and(eq(advisorAssignments.delegationRequestId,request.id),inArray(advisorAssignments.status,['reserved','active'])));const now=new Date();await db.transaction(async tx=>{for(const item of current){await tx.update(advisorAssignments).set({status:'cancelled',endedAt:now,endReason:reason}).where(eq(advisorAssignments.id,item.id));await tx.update(advisorProfiles).set({activeCasesCount:sql`greatest(${advisorProfiles.activeCasesCount}-1,0)`,updatedAt:now}).where(eq(advisorProfiles.userId,item.advisorId));}await tx.update(delegationRequests).set({status:status as any,rejectedAt:status==='rejected'?now:null,updatedAt:now}).where(eq(delegationRequests.id,request.id));await tx.update(userProcedures).set({mode:'self_service',status:status==='cancelled'?'cancelled':'active',cancellationReason:status==='cancelled'?reason:null,cancelledAt:status==='cancelled'?now:null,updatedAt:now}).where(eq(userProcedures.id,request.userProcedureId));});await writeAdminAudit(admin.user.id,`admin.delegation.${status}`,{delegationId:request.id,reason},req);res.json({updated:true,status});});
 
-type EnvironmentCheck = { configured: boolean; valid: boolean; required: boolean; category: 'core'|'email'|'identity'; message?: string };
+type EnvironmentCheck = { configured: boolean; valid: boolean; required: boolean; category: 'core'|'email'|'identity'|'ai'; message?: string };
 const hasPlaceholder = (value:string) => /change_me|my_app_url|your_|example|placeholder/i.test(value);
 const isHttpUrl = (value:string) => { try { return ['http:','https:'].includes(new URL(value).protocol); } catch { return false; } };
 const isPostgresUrl = (value:string) => { try { return ['postgres:','postgresql:'].includes(new URL(value).protocol); } catch { return false; } };
@@ -1047,11 +1252,13 @@ const environmentHealth = () => {
     check('SUPPORT_EMAIL','email',false,input=>/^\S+@\S+\.\S+$/.test(input),'Debe ser un correo válido.'),
     check('PERUDEVS_API_KEY','identity',false,input=>input.length>=24,'Configura un token válido de PeruDevs.'),
     check('PERUDEVS_BASE_URL','identity',false,isHttpUrl,'Debe contener una URL HTTP o HTTPS válida.'),
+    check('OPENAI_API_KEY','ai',false,input=>input.startsWith('sk-')&&input.length>=20,'Configura una clave válida de OpenAI.'),
+    check('OPENAI_SEARCH_MODEL','ai',false,input=>/^[a-z0-9._-]+$/i.test(input),'Configura un identificador de modelo válido.'),
   ];
   const variables=Object.fromEntries(entries) as Record<string,EnvironmentCheck>;
   if(variables.DATA_ENCRYPTION_KEY.configured&&value('DATA_ENCRYPTION_KEY')===value('SESSION_SECRET'))variables.DATA_ENCRYPTION_KEY={...variables.DATA_ENCRYPTION_KEY,valid:false,message:'Debe ser diferente de SESSION_SECRET.'};
   const list=Object.values(variables),mode=process.env.NODE_ENV||'development',developmentFallbacks=new Set(['SESSION_SECRET','DATA_ENCRYPTION_KEY']),coreReady=Object.entries(variables).filter(([,item])=>item.category==='core').every(([name,item])=>item.valid||(mode!=='production'&&developmentFallbacks.has(name))),feature=(category:EnvironmentCheck['category'])=>{const items=list.filter(item=>item.category===category),configured=items.filter(item=>item.configured).length;return{status:items.every(item=>item.valid)?'ready':configured===0?'disabled':'incomplete',configured,required:items.length}};
-  return{mode,variables,summary:{total:list.length,configured:list.filter(item=>item.configured).length,valid:list.filter(item=>item.valid).length,missing:list.filter(item=>!item.configured).length,invalid:list.filter(item=>item.configured&&!item.valid).length},coreReady,features:{email:feature('email'),identityVerification:feature('identity'),documentStorage:{status:(process.env.NETLIFY||process.env.NETLIFY_BLOBS_CONTEXT)?'netlify_blobs':'local_memory'}}};
+  return{mode,variables,summary:{total:list.length,configured:list.filter(item=>item.configured).length,valid:list.filter(item=>item.valid).length,missing:list.filter(item=>!item.configured).length,invalid:list.filter(item=>item.configured&&!item.valid).length},coreReady,features:{email:feature('email'),identityVerification:feature('identity'),intelligentSearch:feature('ai'),documentStorage:{status:(process.env.NETLIFY||process.env.NETLIFY_BLOBS_CONTEXT)?'netlify_blobs':'local_memory'}}};
 };
 
 app.get('/api/health', async (_req, res) => {

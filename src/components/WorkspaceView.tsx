@@ -1426,6 +1426,7 @@ export default function WorkspaceView({
           requirements={requirements}
           isPaid={isPaid}
           advisorName={advisor.name}
+          userProcedureId={caseId || procedure.userProcedureId}
           isOpen={isBotChatOpen}
           onClose={() => setIsBotChatOpen(false)}
         />

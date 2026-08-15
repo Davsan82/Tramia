@@ -3,7 +3,12 @@ import { connectLambda } from "@netlify/blobs";
 import { app } from "../../server";
 import { closeDrizzleDatabase } from "../../server/db/client";
 
-const expressHandler = serverless(app);
+// Netlify Functions requires binary payloads to be base64-encoded by the
+// Lambda adapter. Without this list, images and PDFs are converted to UTF-8
+// text and arrive corrupted even though the original blob is stored correctly.
+const expressHandler = serverless(app, {
+  binary: ['image/*', 'application/pdf', 'application/octet-stream'],
+});
 
 type NetlifyEvent = {
   path?: string;
