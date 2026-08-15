@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 const contactDefaults = {
     email: "",
+    phonePrefix: "+51",
+    phoneNumber: "",
     phone: "",
     location: "Lima, Perú",
     schedule: "Lunes a viernes, 9:00 a. m. a 6:00 p. m.",
@@ -49,7 +51,10 @@ export default function AdminSettingsView() {
       const rows = p.settings || [],
         c = rows.find((x: any) => x.key === "contact"),
         l = rows.find((x: any) => x.key === "landing");
-      setContact({ ...contactDefaults, ...(c?.value || {}) });
+      const storedContact = c?.value || {};
+      const legacyPhone = String(storedContact.phone || "").replace(/[()\s-]/g, "");
+      const legacyMatch = legacyPhone.match(/^(\+\d{1,4})(\d{6,15})$/);
+      setContact({ ...contactDefaults, ...storedContact, phonePrefix: storedContact.phonePrefix || legacyMatch?.[1] || "+51", phoneNumber: storedContact.phoneNumber || legacyMatch?.[2] || "" });
       setLanding({ ...landingDefaults, ...(l?.value || {}) });
     } catch (e) {
       setError(
@@ -67,12 +72,15 @@ export default function AdminSettingsView() {
     setMessage("");
     setError("");
     try {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())) throw new Error("Ingresa un correo electrónico válido.");
+      if (!/^\d{6,15}$/.test(contact.phoneNumber)) throw new Error("Ingresa un teléfono de 6 a 15 dígitos, sin espacios ni letras.");
+      const normalizedContact = { ...contact, email: contact.email.trim().toLowerCase(), phone: `${contact.phonePrefix} ${contact.phoneNumber}` };
       const responses = await Promise.all([
         fetch("/api/v1/admin/settings/contact", {
           method: "PUT",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value: contact, isPublic: true }),
+          body: JSON.stringify({ value: normalizedContact, isPublic: true }),
         }),
         fetch("/api/v1/admin/settings/landing", {
           method: "PUT",
@@ -81,8 +89,11 @@ export default function AdminSettingsView() {
           body: JSON.stringify({ value: landing, isPublic: true }),
         }),
       ]);
-      if (!responses.every((r) => r.ok))
-        throw new Error("No pudimos guardar toda la configuración.");
+      if (!responses.every((r) => r.ok)) {
+        const failed = responses.find((r) => !r.ok);
+        const payload = await failed?.json().catch(() => ({}));
+        throw new Error(payload?.message || "No pudimos guardar toda la configuración.");
+      }
       setMessage("Configuración publicada correctamente.");
     } catch (e) {
       setError(
@@ -138,9 +149,20 @@ export default function AdminSettingsView() {
           </span>
           <h3 className="mt-4 text-lg font-black">Canales de atención</h3>
           <div className="mt-5 grid gap-4">
+            <label>
+              <span className="mb-1 block text-xs font-black">Correo</span>
+              <input type="email" className="field-input" value={contact.email} onChange={(event)=>setContact({...contact,email:event.target.value})} placeholder="soporte@tramia.pe" />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-black">Teléfono</span>
+              <div className="grid grid-cols-[125px_1fr] gap-2">
+                <select className="field-input" value={contact.phonePrefix} onChange={(event)=>setContact({...contact,phonePrefix:event.target.value})} aria-label="Prefijo internacional">
+                  <option value="+51">Perú +51</option><option value="+1">EE. UU. +1</option><option value="+52">México +52</option><option value="+57">Colombia +57</option><option value="+56">Chile +56</option><option value="+54">Argentina +54</option><option value="+593">Ecuador +593</option><option value="+591">Bolivia +591</option><option value="+55">Brasil +55</option>
+                </select>
+                <input inputMode="numeric" className="field-input" value={contact.phoneNumber} onChange={(event)=>setContact({...contact,phoneNumber:event.target.value.replace(/\D/g,"").slice(0,15)})} placeholder="999000000" />
+              </div>
+            </label>
             {Object.entries({
-              email: "Correo",
-              phone: "Teléfono",
               location: "Ubicación",
               schedule: "Horario",
               responseTime: "Tiempo de respuesta",

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   CreditCard,
+  Download,
   Fingerprint,
   LoaderCircle,
   MailCheck,
@@ -30,12 +31,42 @@ interface ProfileViewProps {
 }
 type Notice = { type: "success" | "error"; text: string } | null;
 
+const PHONE_COUNTRIES = [
+  { country: "Perú", prefix: "+51", minLength: 9, maxLength: 9 },
+  { country: "Argentina", prefix: "+54", minLength: 10, maxLength: 10 },
+  { country: "Bolivia", prefix: "+591", minLength: 8, maxLength: 8 },
+  { country: "Brasil", prefix: "+55", minLength: 10, maxLength: 11 },
+  { country: "Chile", prefix: "+56", minLength: 9, maxLength: 9 },
+  { country: "Colombia", prefix: "+57", minLength: 10, maxLength: 10 },
+  { country: "Ecuador", prefix: "+593", minLength: 9, maxLength: 9 },
+  { country: "EE. UU. / Canadá", prefix: "+1", minLength: 10, maxLength: 10 },
+  { country: "México", prefix: "+52", minLength: 10, maxLength: 10 },
+  { country: "Paraguay", prefix: "+595", minLength: 9, maxLength: 9 },
+  { country: "Uruguay", prefix: "+598", minLength: 8, maxLength: 8 },
+  { country: "Venezuela", prefix: "+58", minLength: 10, maxLength: 10 },
+  { country: "España", prefix: "+34", minLength: 9, maxLength: 9 },
+] as const;
+
+function splitStoredPhone(value: string) {
+  const compact = value.trim().replace(/[^\d+]/g, "");
+  const country = [...PHONE_COUNTRIES]
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+    .find((item) => compact.startsWith(item.prefix));
+  if (!country)
+    return { phonePrefix: "+51", phoneNumber: compact.replace(/\D/g, "").slice(0, 15) };
+  return {
+    phonePrefix: country.prefix,
+    phoneNumber: compact.slice(country.prefix.length).replace(/\D/g, "").slice(0, 15),
+  };
+}
+
 export default function ProfileView({
   profile,
   onUpdateProfile,
 }: ProfileViewProps) {
+  const initialPhone = splitStoredPhone(profile.phone || "");
   const [contact, setContact] = useState({
-    phone: profile.phone || "",
+    ...initialPhone,
     address: profile.address || "",
     department: profile.department || "",
     province: profile.province || "",
@@ -60,14 +91,16 @@ export default function ProfileView({
   const isIdentityVerified = profile.identityVerificationStatus === "verified";
 
   useEffect(
-    () =>
+    () => {
+      const storedPhone = splitStoredPhone(profile.phone || "");
       setContact({
-        phone: profile.phone || "",
+        ...storedPhone,
         address: profile.address || "",
         department: profile.department || "",
         province: profile.province || "",
         district: profile.district || "",
-      }),
+      });
+    },
     [profile],
   );
   useEffect(() => {
@@ -190,6 +223,21 @@ export default function ProfileView({
     setSaving(true);
     setContactNotice(null);
     try {
+      const selectedCountry = PHONE_COUNTRIES.find(
+        (country) => country.prefix === contact.phonePrefix,
+      );
+      if (
+        !selectedCountry ||
+        contact.phoneNumber.length < selectedCountry.minLength ||
+        contact.phoneNumber.length > selectedCountry.maxLength
+      ) {
+        const expectedLength = selectedCountry
+          ? selectedCountry.minLength === selectedCountry.maxLength
+            ? `${selectedCountry.minLength} dígitos`
+            : `entre ${selectedCountry.minLength} y ${selectedCountry.maxLength} dígitos`
+          : "una longitud válida";
+        throw new Error(`Ingresa un celular de ${expectedLength} para el país seleccionado.`);
+      }
       const response = await fetch("/api/v1/profile", {
         method: "PATCH",
         credentials: "include",
@@ -341,14 +389,45 @@ export default function ProfileView({
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <Field label="Celular" icon={Phone}>
-              <input
-                className="field-input"
-                required
-                type="tel"
-                value={contact.phone}
-                onChange={updateContact("phone")}
-                placeholder="+51 999 999 999"
-              />
+              <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] gap-2">
+                <select
+                  className="field-input field-select"
+                  required
+                  value={contact.phonePrefix}
+                  onChange={(event) =>
+                    setContact((value) => ({
+                      ...value,
+                      phonePrefix: event.target.value,
+                      phoneNumber: "",
+                    }))
+                  }
+                  aria-label="País y prefijo telefónico"
+                >
+                  {PHONE_COUNTRIES.map((country) => (
+                    <option key={country.prefix} value={country.prefix}>
+                      {country.country} ({country.prefix})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="field-input"
+                  required
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="tel-national"
+                  maxLength={15}
+                  value={contact.phoneNumber}
+                  onChange={(event) =>
+                    setContact((value) => ({
+                      ...value,
+                      phoneNumber: event.target.value.replace(/\D/g, "").slice(0, 15),
+                    }))
+                  }
+                  placeholder="973110496"
+                  aria-label="Número de celular"
+                />
+              </div>
             </Field>
             <Field label="Departamento" icon={MapPin}>
               <select
@@ -608,8 +687,8 @@ export default function ProfileView({
         <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7">
           <SectionTitle
             icon={CreditCard}
-            title="Historial de pagos simulados"
-            description="Recibos de prueba asociados a tus trámites."
+            title="Historial de pagos"
+            description="Consulta y descarga los comprobantes asociados a tus trámites."
           />
           <div className="mt-5 space-y-2">
             {payments.map((payment) => (
@@ -623,7 +702,14 @@ export default function ProfileView({
                     {payment.reference || "Sin referencia"} · {payment.status}
                   </p>
                 </div>
-                <strong>S/ {(payment.amountMinor / 100).toFixed(2)}</strong>
+                <div className="flex items-center gap-3">
+                  <strong>S/ {(payment.amountMinor / 100).toFixed(2)}</strong>
+                  {["paid", "authorized", "partially_refunded"].includes(payment.status) && (
+                    <a href={`/api/v1/payments/${payment.id}/receipt.pdf`} download className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 font-black text-blue-700 transition hover:bg-blue-50">
+                      <Download size={14} /> Boleta PDF
+                    </a>
+                  )}
+                </div>
               </article>
             ))}
           </div>

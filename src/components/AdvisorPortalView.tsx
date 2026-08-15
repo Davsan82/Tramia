@@ -37,6 +37,8 @@ type Detail = {
     title: string;
     description: string;
     isPointOfNoReturn: boolean;
+    notes?: string | null;
+    completedAt?: string | null;
   }>;
   requirements: Array<{
     id: string;
@@ -277,7 +279,7 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
         </section>
         <div className="mt-5">{advisorProfile}</div>
         {detail ? (
-          <CaseDetail
+          <AdvisorCaseDetail
             data={detail}
             onBack={() => setDetail(null)}
             onSaved={async () => {
@@ -503,4 +505,38 @@ function CaseDetail({
       </div>
     </section>
   );
+}
+
+function AdvisorCaseDetail({ data, onBack, onSaved }: { data: Detail; onBack: () => void; onSaved: () => void }) {
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const nextStep = data.steps.find((step) => !["completed", "skipped"].includes(step.status));
+  const completedCount = data.steps.filter((step) => ["completed", "skipped"].includes(step.status)).length;
+  const progress = data.steps.length ? Math.round(completedCount / data.steps.length * 100) : data.case.progressPercentage;
+  const save = async () => {
+    if (!nextStep) return;
+    setSaving(true); setError("");
+    const response = await fetch(`/api/v1/advisor/cases/${data.case.id}/steps/${nextStep.id}/complete`, { method:"POST", credentials:"include", headers:{"Content-Type":"application/json"}, body:JSON.stringify({notes}) });
+    const payload = await response.json().catch(()=>({}));
+    if(response.ok){setNotes("");onSaved();}else setError(payload.message||"No pudimos confirmar este paso.");
+    setSaving(false);
+  };
+  return <section className="mt-6">
+    <button onClick={onBack} className="inline-flex items-center gap-2 text-sm font-black text-blue-700"><ArrowLeft size={16}/>Volver a mis casos</button>
+    <div className="mt-4 grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <span className="text-xs font-black uppercase tracking-widest text-blue-600">{data.case.trackingCode}</span>
+        <h2 className="mt-2 text-2xl font-black">{data.case.title}</h2>
+        <p className="mt-2 text-sm text-slate-500">Ciudadano: <strong>{data.case.clientName||data.case.clientUsername}</strong></p>
+        <div className="mt-6 rounded-2xl bg-gradient-to-r from-blue-700 to-cyan-500 p-5 text-white"><div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-cyan-100">Avance confirmado</p><p className="mt-1 text-sm font-bold">{nextStep?`Siguiente: ${nextStep.title}`:"Todos los pasos fueron completados"}</p></div><strong className="text-3xl font-black">{progress}%</strong></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-950/25"><div className="h-full rounded-full bg-white" style={{width:`${progress}%`}}/></div></div>
+        <div className="mt-6 space-y-3">{data.steps.map(step=>{const completed=["completed","skipped"].includes(step.status),current=step.id===nextStep?.id;return <article key={step.id} className={`rounded-2xl border p-4 ${completed?"border-emerald-200 bg-emerald-50":current?"border-blue-400 bg-blue-50 shadow-sm":"border-slate-200 bg-slate-50 opacity-70"}`}><div className="flex gap-3"><span className={`grid size-8 shrink-0 place-items-center rounded-xl text-xs font-black ${completed?"bg-emerald-500 text-white":current?"bg-blue-600 text-white":"bg-slate-200 text-slate-500"}`}>{completed?<CheckCircle2 size={17}/>:step.position}</span><div><p className="font-black">{step.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{step.description}</p>{step.isPointOfNoReturn&&<span className="mt-2 inline-block rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">Punto de no retorno</span>}{completed&&<p className="mt-2 text-xs font-bold text-emerald-700">Completado{step.completedAt?` · ${new Intl.DateTimeFormat("es-PE",{dateStyle:"medium",timeStyle:"short"}).format(new Date(step.completedAt))}`:""}</p>}{completed&&step.notes&&<p className="mt-1 text-xs text-slate-600">{step.notes}</p>}</div></div></article>})}</div>
+      </div>
+      <aside className="space-y-5">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Acción del asesor</p><h3 className="mt-2 text-lg font-black">{nextStep?`Completar paso ${nextStep.position}`:"Gestión completada"}</h3>{nextStep&&<><p className="mt-2 text-sm leading-6 text-slate-600">{nextStep.title}. Al confirmar, el ciudadano verá el avance y recibirá un aviso por correo.</p><label className="mt-4 block text-xs font-black text-slate-600">Nota para el ciudadano (opcional)<textarea value={notes} onChange={event=>setNotes(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border border-slate-200 p-3" placeholder="Indica qué se realizó o cuál es la siguiente instrucción."/></label>{error&&<p className="mt-3 text-xs font-bold text-red-600">{error}</p>}<button onClick={()=>void save()} disabled={saving} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-black text-white disabled:opacity-50"><CheckCircle2 size={17}/>{saving?"Confirmando…":"Marcar paso como completado"}</button></>}{!nextStep&&<div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-center text-sm font-bold text-emerald-800"><CheckCircle2 className="mx-auto mb-2"/>El ciudadano ya fue informado de que su trámite está listo.</div>}</div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5"><h3 className="font-black">Requisitos del trámite</h3><div className="mt-3 space-y-2">{data.requirements.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-xs"><span className="font-bold">{item.name}</span><span className="rounded-full bg-white px-2 py-1 font-black text-blue-700">{item.status}</span></div>)}</div></div>
+        <CaseDocuments caseId={data.case.id} role="advisor"/><CaseMessages caseId={data.case.id}/>
+      </aside>
+    </div>
+  </section>;
 }

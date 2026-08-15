@@ -888,18 +888,20 @@ export default function App() {
               if (profile.isNew) {
                 setActiveProcedures([]);
                 setReminders([]);
-                setCurrentTab('panel');
+                setSelectedProcedure(null);
+                setCurrentTab('perfil');
                 setInicioSubView('home');
+                window.history.replaceState({}, '', '/');
               }
               setToastMessage({
                 title: "¡Perfil Sincronizado!",
                 desc: `Bienvenido a TramIA, ${profile.fullName.split(' ')[0]}. Tu Copiloto inteligente se encuentra activo.`,
                 type: 'success'
               });
-              if (authSuccessCallback) {
+              if (authSuccessCallback && !profile.isNew) {
                 authSuccessCallback();
-                setAuthSuccessCallback(null);
               }
+              setAuthSuccessCallback(null);
             }}
           />
         </div>

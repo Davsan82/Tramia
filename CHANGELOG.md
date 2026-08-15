@@ -7,6 +7,28 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-14
+
+### Agregado
+
+- Seguimiento de solo lectura para el ciudadano después de pagar una delegación, con asesor asignado, porcentaje y secuencia completa del trámite.
+- Control para que el asesor complete exclusivamente el siguiente paso pendiente y notifique al ciudadano por correo.
+- Conversación privada entre ciudadano y asesor durante toda la gestión delegada.
+- Boleta de venta descargable en PDF para cada pago confirmado.
+- Selector de país y prefijo internacional en el celular del perfil.
+
+### Mejorado
+
+- Validación de correo y teléfono en la configuración administrativa de canales de atención.
+- Validación del celular tanto en la interfaz como en la API, con almacenamiento normalizado y longitud correspondiente al país.
+- La creación de una cuenta inicia sesión y lleva directamente a Mi perfil, sin mostrar el panel heredado ni ejecutar redirecciones pendientes.
+- Documentación de la API y README actualizados con el flujo delegado vigente.
+
+### Corregido
+
+- Reanudación de trámites delegados pagados para mostrar el seguimiento moderno en lugar de la interfaz antigua.
+- Acceso al chat después de completar una delegación.
+
 ## [0.8.1] - 2026-08-14
 
 ### Corregido
@@ -302,7 +324,8 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Davsan82/Tramia/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Davsan82/Tramia/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Davsan82/Tramia/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Davsan82/Tramia/compare/v0.6.1...v0.7.0

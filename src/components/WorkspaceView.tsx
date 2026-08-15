@@ -44,6 +44,7 @@ import DocumentValidationModal, {
 } from "./DocumentValidationModal";
 import { trackEvent } from "../utils/analytics";
 import DelegationModalV2 from "./DelegationModalV2";
+import DelegatedTrackingView from "./DelegatedTrackingView";
 import { alertTramia } from "./TramiaDialog";
 
 function getOfficialSource(procedure: Procedure) {
@@ -517,15 +518,18 @@ export default function WorkspaceView({
 
   // Delegation states (Flow B)
   const [delegationSnapshot, setDelegationSnapshot] = useState<any>(null);
+  const [delegationSnapshotLoaded, setDelegationSnapshotLoaded] = useState(false);
   const [isPaid, setIsPaid] = useState<boolean>(initialIsPaid);
   const [isPaying, setIsPaying] = useState<boolean>(false);
   useEffect(() => {
-    if (!caseId || !isDelegated) return;
+    if (!caseId) return;
+    setDelegationSnapshotLoaded(false);
     fetch(`/api/v1/my-procedures/${caseId}/delegation`, { credentials: "include" })
       .then((response) => response.json().then((payload) => ({ response, payload })))
       .then(({ response, payload }) => { if (response.ok) setDelegationSnapshot(payload); })
-      .catch(() => {});
-  }, [caseId, isDelegated]);
+      .catch(() => {})
+      .finally(() => setDelegationSnapshotLoaded(true));
+  }, [caseId, isDelegated, isPaid]);
   const assignedAdvisorRecord = delegationSnapshot?.advisors?.find((item: any) => item.userId === delegationSnapshot?.delegation?.requestedAdvisorId);
   const advisor = {
     name: assignedAdvisorRecord?.publicName || "Asesor por asignar",
@@ -652,6 +656,21 @@ export default function WorkspaceView({
   const isAllStepsCompleted =
     completionPercentageA === 100 && isLastStepCompleted;
   const hasStartedProcedure = completedStepIds.length > 0 || completionPercentageA > 0 || isPaid;
+
+  const isPaidDelegation = Boolean(
+    (isPaid && isDelegated) ||
+    delegationSnapshot?.payments?.some((payment: any) => ["paid", "authorized"].includes(payment.status)) ||
+    ["paid", "assigned", "active", "completed"].includes(delegationSnapshot?.delegation?.status) ||
+    ["waiting_assignment", "delegated"].includes(delegationSnapshot?.procedure?.status),
+  );
+
+  if (caseId && initialIsDelegated && !delegationSnapshotLoaded) {
+    return <div className="grid min-h-[50vh] place-items-center"><div className="text-center"><RefreshCw className="mx-auto animate-spin text-blue-600"/><p className="mt-3 text-sm font-bold text-slate-500">Recuperando el estado de tu delegación…</p></div></div>;
+  }
+
+  if (caseId && isPaidDelegation) {
+    return <DelegatedTrackingView procedure={procedure} caseId={caseId} onBack={onBack} />;
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn" id="workspace-view-top">

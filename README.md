@@ -25,6 +25,9 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Vista de trámites del usuario e historial consultados desde Neon.
 - Checklist estrictamente secuencial con porcentaje, siguiente paso, confirmaciones fechadas y evidencia visualizable.
 - Delegación con selección de asesor, medios guardados y pago de prueba animado.
+- Seguimiento delegado de solo lectura para el ciudadano, con avance confirmado paso a paso por el asesor asignado.
+- Chat privado ciudadano–asesor y avisos por correo después de cada avance; al 100% se informa que el trámite está listo para recoger.
+- Boleta de venta descargable en PDF para cada pago confirmado desde Mi perfil.
 - Formulario de contacto almacenado en Neon y enviado por SMTP.
 - API Express, especificación OpenAPI y Swagger en `/api/docs`.
 - Health check de PostgreSQL, configuración crítica e integraciones en `/api/health`.
@@ -42,6 +45,7 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Documentos binarios en Netlify Blobs; PostgreSQL conserva únicamente metadatos y claves.
 - Delegaciones, asignaciones y reasignaciones persistentes y auditadas.
 - El asesor elegido queda asignado automáticamente luego del pago ficticio aprobado.
+- El asesor solo puede completar el siguiente paso pendiente; no puede editar porcentajes ni saltarse la secuencia.
 
 ### Demostrativo o pendiente
 
@@ -112,7 +116,7 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
-La versión 0.8.1 valida de extremo a extremo la visa B1/B2 en autogestión y delegación. Cada inicio crea una instancia independiente, la modalidad elegida persiste al reabrirla y la preparación delegada utiliza únicamente sus requisitos personales configurados. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
+La versión 0.9.0 incorpora el seguimiento completo de trámites delegados: el asesor actualiza los pasos en secuencia, el ciudadano consulta el avance y conversa con su especialista, y cada pago confirmado genera una boleta descargable. También mejora la configuración de contacto, el celular con prefijo internacional y el ingreso directo al perfil después del registro. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
 
 ### Requisitos
 
