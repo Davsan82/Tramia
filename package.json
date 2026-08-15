@@ -1,7 +1,7 @@
 {
   "name": "tramia",
   "private": true,
-  "version": "0.10.2",
+  "version": "0.10.3",
   "type": "module",
   "scripts": {
     "dev": "tsx server-runtime.ts",
@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx database/seed.ts",
     "db:seed:visa-b1b2": "tsx scripts/seed-us-visa-b1b2.ts",
+    "db:repair:advisor-encoding": "tsx scripts/repair-advisor-text-encoding.ts",
     "admin:assign": "tsx scripts/assign-role.ts",
     "admin:create-local": "tsx scripts/create-local-admin.ts",
     "demo:advisors": "tsx scripts/seed-demo-advisors.ts",

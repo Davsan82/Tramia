@@ -7,6 +7,31 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-08-15
+
+### Agregado
+
+- Carga múltiple de documentos para ciudadanos y asesores, con origen visible, permisos de retiro por autor y revisión de evidencias del ciudadano.
+- Calificación administrativa de asesores entre 0 y 5, incluyendo medias estrellas.
+- Script controlado para reparar nombres y presentaciones de asesores afectados por una codificación histórica incorrecta.
+- Banderas, país y prefijo internacional en el registro y en los datos de contacto del perfil.
+
+### Mejorado
+
+- Supervisión administrativa completamente localizada al español para estados, modalidades, requisitos, pagos, proveedores e historial.
+- Distribución responsive del celular: selector internacional legible y número nacional correctamente alineado.
+- Presentación de documentos compartidos por el asesor y adjuntados por el ciudadano dentro de una gestión delegada.
+
+### Corregido
+
+- Normalización Unicode de nombres y presentaciones de asesores antes de persistirlos en Neon.
+- Bloqueo preventivo de textos con caracteres dañados en la gestión administrativa de asesores.
+- Presentación almacenada de David Asesor TramIA reparada en Neon.
+
+### Verificado
+
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción finalizan correctamente.
+
 ## [0.10.2] - 2026-08-14
 
 ### Mejorado
@@ -382,7 +407,8 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/Davsan82/Tramia/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/Davsan82/Tramia/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Davsan82/Tramia/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Davsan82/Tramia/compare/v0.9.0...v0.10.0

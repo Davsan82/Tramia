@@ -37,6 +37,8 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 ### Persistencia operativa
 
 - Fotos de perfil con selección, arrastre, vista previa y optimización para clientes y asesores.
+- Carga múltiple de documentos por ciudadanos y asesores, con permisos por autor y almacenamiento en Netlify Blobs.
+- Supervisión administrativa en español y calificación de asesores con medias estrellas.
 - Configuración pública editable para canales de atención.
 - Pasos accionables con fechas, formularios, archivos y cierre irreversible confirmado.
 - Medios de pago de prueba exclusivamente ficticios y tokenizados; no se almacena PAN ni CVV.

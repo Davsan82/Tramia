@@ -484,9 +484,9 @@ export default function ProfileView({
           />
           <div className="mt-6 space-y-5">
             <Field label="Celular" icon={Phone}>
-              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10.5rem_minmax(0,1fr)] sm:gap-3">
                 <select
-                  className="field-input field-select text-center font-black text-blue-700"
+                  className="field-input field-select min-w-0 text-left font-bold text-blue-800"
                   required
                   value={contact.phonePrefix}
                   onChange={(event) =>
@@ -500,12 +500,12 @@ export default function ProfileView({
                 >
                   {PHONE_COUNTRIES.map((country) => (
                     <option key={country.prefix} value={country.prefix} title={country.country}>
-                      {country.prefix}
+                      {country.flag} {country.country} {country.prefix}
                     </option>
                   ))}
                 </select>
                 <input
-                  className="field-input"
+                  className="field-input min-w-0 font-semibold tracking-wide tabular-nums"
                   required
                   type="tel"
                   inputMode="numeric"
