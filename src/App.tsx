@@ -25,7 +25,7 @@ import { confirmTramia } from './components/TramiaDialog';
 import { EXPIRATION_REMINDERS } from './data';
 import { loadProcedureCatalog } from './services/catalog';
 import { Procedure, ActiveProcedure, ExpirationReminder, Requirement, UserProfile } from './types';
-import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ShieldCheck, ChevronRight, CheckCircle2, Headphones, ListChecks } from 'lucide-react';
+import { Sparkles, Calendar, Bell, ShieldX, X, Home, Clock, History, User, LayoutDashboard, Lock, UserCheck, ChevronRight, CheckCircle2, Headphones, ListChecks } from 'lucide-react';
 
 export default function App() {
   if (window.location.pathname === '/admin') return <Suspense fallback={<div className="grid min-h-screen place-items-center font-bold text-blue-700">Cargando administración…</div>}><AdminDashboardView onExit={() => { window.location.assign('/'); }} /></Suspense>;
@@ -65,6 +65,17 @@ export default function App() {
   // Completion mode selection modal (Hazlo tú mismo vs Delegar)
   const [isMethodSelectionModalOpen, setIsMethodSelectionModalOpen] = useState(false);
   const [pendingProcedureToStart, setPendingProcedureToStart] = useState<Procedure | null>(null);
+  const [advisorPricing, setAdvisorPricing] = useState<{ fromAmountMinor: number | null; currency: string } | null>(null);
+
+  useEffect(() => {
+    if (!isMethodSelectionModalOpen) return;
+    let active = true;
+    fetch('/api/v1/public/advisors/pricing')
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((payload) => { if (active) setAdvisorPricing(payload.pricing || null); })
+      .catch(() => { if (active) setAdvisorPricing(null); });
+    return () => { active = false; };
+  }, [isMethodSelectionModalOpen]);
 
   // Mobile sidebar visibility state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -945,10 +956,9 @@ export default function App() {
                   <span className="relative mb-3 ml-auto inline-flex rounded-full bg-violet-600 px-3 py-1 text-[10px] font-black uppercase tracking-[.1em] text-white sm:absolute sm:right-4 sm:top-4 sm:mb-0">Con asesor</span>
                   <div className="flex items-start gap-4 sm:pr-14"><span className="grid size-13 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700"><Headphones size={26}/></span><div><span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.12em] text-violet-700">Gestión acompañada</span><h4 className="mt-2 text-xl font-black">Delegar a TramIA</h4><p className="mt-1 text-sm leading-6 text-slate-600">Completa primero tus acciones personales y luego elige un asesor para continuar.</p></div></div>
                   <ul className="my-5 space-y-3 border-y border-violet-100 py-5 text-sm font-semibold text-slate-700"><Benefit text="Validación previa de los pasos que debes hacer" tone="violet"/><Benefit text="Elección de asesor según experiencia" tone="violet"/><Benefit text="Seguimiento del caso desde tu cuenta" tone="violet"/></ul>
-                  <div className="mt-auto"><p className="mb-3 text-xs font-bold text-violet-700">Servicio desde {pendingProcedureToStart.feeAmount || 'S/ 65.00'} · pago simulado</p><button onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, true)} className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800" id="modal-delegate-flow-btn">Revisar opción delegada <ChevronRight size={17}/></button></div>
+                  <div className="mt-auto"><p className="mb-3 text-xs font-bold text-violet-700">{advisorPricing?.fromAmountMinor ? `Servicio desde ${new Intl.NumberFormat('es-PE',{style:'currency',currency:advisorPricing.currency||'PEN',minimumFractionDigits:2}).format(advisorPricing.fromAmountMinor/100)}` : 'Tarifa según el asesor elegido'}</p><button onClick={() => handleFinalizeProcedureStart(pendingProcedureToStart, true)} className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800" id="modal-delegate-flow-btn">Revisar opción delegada <ChevronRight size={17}/></button></div>
                 </article>
               </div>
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-4"><ShieldCheck className="mt-0.5 shrink-0 text-cyan-700" size={20}/><p className="text-xs leading-5 text-slate-600"><strong className="text-slate-900">Tú mantienes el control.</strong> Puedes revisar la ruta antes de elegir. TramIA nunca solicita ni almacena tu Clave SOL.</p></div>
             </div>
           </div>
         </div>

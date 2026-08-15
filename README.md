@@ -116,7 +116,7 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
-La versión 0.10.1 mejora el portal del asesor, distingue los requisitos previos completados por el ciudadano y expone la capacidad, disponibilidad y tarifa profesional con etiquetas claras. La portada también reemplaza el acceso rápido de matrimonio por el trámite real de Visa Americana. Consulta el historial completo en [CHANGELOG.md](CHANGELOG.md).
+La versión 0.10.2 muestra en la selección de modalidad el precio mínimo real de los asesores verificados y disponibles, y simplifica la presentación de la opción delegada. También conserva las mejoras del portal del asesor y el acceso rápido a Visa Americana incorporados en la versión anterior. Consulta el historial completo en [CHANGELOG.md](CHANGELOG.md).
 
 ### Requisitos
 
