@@ -218,6 +218,8 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 | `npm run db:check`                           | Valida el historial de Drizzle.                                        |
 | `npm run db:migrate`                         | Ejecuta migraciones pendientes.                                        |
 | `npm run db:seed`                            | Carga los datos maestros iniciales.                                    |
+| `npm run db:audit:routes`                    | Audita el orden y la configuración de las rutas activas en Neon.       |
+| `npm run db:revise:routes`                   | Previsualiza revisiones versionadas de rutas; usa `-- --apply` para aplicarlas. |
 | `npm run admin:assign -- correo@dominio.com` | Asigna de forma explícita el rol administrador a una cuenta existente. |
 | `npm run security:check`                     | Busca secretos comprometidos en archivos versionados.                  |
 | `npm run encoding:check`                     | Verifica UTF-8 y detecta texto potencialmente dañado por mojibake.     |
@@ -230,7 +232,7 @@ Cuando un commit agregue una variable o migración, debe indicarse expresamente 
 
 TramIA sigue [Versionado Semántico](https://semver.org/lang/es/) y utiliza tags `vMAJOR.MINOR.PATCH`. La versión se obtiene automáticamente desde `package.json` y se muestra discretamente en el footer y en el menú de usuario; no enlaza al repositorio privado.
 
-Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md), [HEALTH.md](docs/HEALTH.md), [HARD_RESET.md](docs/HARD_RESET.md) y [CHANGELOG.md](CHANGELOG.md).
+Al publicar un tag, GitHub Actions valida seguridad, TypeScript, Drizzle y build, y luego genera el GitHub Release. Consulta [RELEASING.md](docs/RELEASING.md), [HEALTH.md](docs/HEALTH.md), [HARD_RESET.md](docs/HARD_RESET.md), [ROUTE_REVIEW.md](docs/ROUTE_REVIEW.md) y [CHANGELOG.md](CHANGELOG.md).
 
 ## Privacidad y seguridad
 

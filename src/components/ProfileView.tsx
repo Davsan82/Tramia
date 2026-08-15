@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CreditCard,
   Download,
+  Eye,
   Fingerprint,
   LoaderCircle,
   MailCheck,
@@ -783,27 +784,23 @@ export default function ProfileView({
           <SectionTitle
             icon={CreditCard}
             title="Historial de pagos"
-            description="Consulta y descarga los comprobantes asociados a tus trámites."
+            description="Consulta, visualiza y descarga los comprobantes asociados a tus trámites."
           />
           <div className="mt-5 space-y-2">
             {payments.map((payment) => (
               <article
                 key={payment.id}
-                className="flex flex-col gap-2 rounded-xl bg-slate-50 p-4 text-xs sm:flex-row sm:items-center"
+                className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs transition hover:border-blue-100 hover:bg-blue-50/40 sm:flex-row sm:items-center"
               >
                 <div className="flex-1">
                   <p className="font-black">{payment.procedureTitle}</p>
                   <p className="mt-1 text-slate-500">
-                    {payment.reference || "Sin referencia"} · {payment.status}
+                    {payment.reference || "Sin referencia"} · {payment.status === "paid" ? "Pagado" : payment.status === "authorized" ? "Autorizado" : "Reembolso parcial"}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <strong>S/ {(payment.amountMinor / 100).toFixed(2)}</strong>
-                  {["paid", "authorized", "partially_refunded"].includes(payment.status) && (
-                    <a href={`/api/v1/payments/${payment.id}/receipt.pdf`} download className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 font-black text-blue-700 transition hover:bg-blue-50">
-                      <Download size={14} /> Boleta PDF
-                    </a>
-                  )}
+                <div className="flex flex-col gap-3 sm:items-end">
+                  <strong className="text-sm text-slate-950">S/ {(payment.amountMinor / 100).toFixed(2)}</strong>
+                  {["paid", "authorized", "partially_refunded"].includes(payment.status) && <div className="flex flex-wrap gap-2"><a href={`/api/v1/payments/${payment.id}/receipt.pdf`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 font-black text-white shadow-sm transition hover:bg-blue-700"><Eye size={14}/> Ver boleta</a><a href={`/api/v1/payments/${payment.id}/receipt.pdf?download=1`} download className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 font-black text-blue-700 transition hover:bg-blue-50"><Download size={14}/> Descargar</a></div>}
                 </div>
               </article>
             ))}

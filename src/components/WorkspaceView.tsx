@@ -1571,14 +1571,14 @@ export default function WorkspaceView({
             <div className={`p-5 sm:p-7 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "space-y-4" : "space-y-5"}`}>
               {(actionStep.actionConfig?.fields?.length || 0) > 0 && <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4"><Info className="mt-0.5 shrink-0 text-blue-600" size={18}/><p className="text-xs leading-5 text-slate-600">Registra los datos que correspondan. Los campos obligatorios están identificados; la información adicional es opcional.</p></div>}
 
-              <div className={`grid gap-4 ${(actionStep.actionConfig?.fields?.length || 0) > 0 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+              {((actionStep.actionConfig?.fields?.length || 0) > 0 || actionStep.completionMode === "date") ? <div className={`grid gap-4 ${(actionStep.actionConfig?.fields?.length || 0) > 0 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
                 <label className="block text-xs font-black text-slate-800">
                     <span className="inline-flex items-center gap-1.5"><CalendarCheck2 size={15} className="text-blue-600"/>Fecha de realización <span className="text-red-500">*</span></span>
                     <input type="date" required className="field-input mt-2" value={actionData.date || ""} onChange={(e) => setActionData({ ...actionData, date: e.target.value })}/>
                     <span className="mt-1.5 block text-[11px] font-normal leading-4 text-slate-500">Quedará registrada junto con la confirmación.</span>
                 </label>
                 {actionStep.actionConfig?.fields?.map(field=><label key={field.key} className="block text-xs font-black text-slate-800"><span>{field.label}{field.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 font-medium text-slate-400">(opcional)</span>}</span>{field.type==='select'?<select required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}><option value="">Selecciona una opción</option>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:<input type={field.type||'text'} required={field.required} className="field-input mt-2" value={actionData[field.key]||''} onChange={e=>setActionData({...actionData,[field.key]:e.target.value})}/>}</label>)}
-              </div>
+              </div> : <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-600" size={19}/><div><p className="text-sm font-black text-slate-900">Confirma que terminaste este paso</p><p className="mt-1 text-xs leading-5 text-slate-600">Guardaremos automáticamente la fecha y hora de esta confirmación.</p></div></div>}
 
               {actionData.documentId && <a href={`/api/v1/documents/${actionData.documentId}/content`} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"><span className="inline-flex min-w-0 items-center gap-2"><FileText size={17}/><span className="truncate">{actionData.fileName || "Ver archivo adjunto"}</span></span><Eye size={17}/></a>}
 
@@ -1587,10 +1587,10 @@ export default function WorkspaceView({
                 <textarea className="field-input mt-2 min-h-24 resize-y" placeholder="Agrega una nota, número de referencia o detalle que quieras recordar." value={actionData.notes || ""} onChange={(e) => setActionData({ ...actionData, notes: e.target.value })}/>
               </label>}
 
-              <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 text-xs leading-5 text-amber-950 transition hover:border-amber-300 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "p-3" : "p-4"}`}>
+              {((actionStep.actionConfig?.fields?.length || 0) > 0 || actionStep.completionMode === "date") && <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 text-xs leading-5 text-amber-950 transition hover:border-amber-300 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "p-3" : "p-4"}`}>
                 <input type="checkbox" required className="mt-0.5 size-4 shrink-0 accent-blue-600"/>
                 <span><strong className="block">Confirmo que completé esta etapa</strong><span className="mt-0.5 block text-amber-800">Al guardarla quedará cerrada y ya no se podrá modificar.</span></span>
-              </label>
+              </label>}
             </div>
             <div className={`grid gap-3 border-t border-slate-100 bg-slate-50/70 sm:grid-cols-2 sm:px-7 ${(actionStep.actionConfig?.fields?.length || 0) === 0 ? "p-4" : "p-5"}`}>
               <button
@@ -1601,7 +1601,7 @@ export default function WorkspaceView({
                 Cancelar
               </button>
               <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700">
-                <ShieldCheck size={17}/> Guardar y completar
+                <ShieldCheck size={17}/> {((actionStep.actionConfig?.fields?.length || 0) === 0 && actionStep.completionMode !== "date") ? "Confirmar etapa" : "Guardar y completar"}
               </button>
             </div>
           </form>
@@ -1660,24 +1660,16 @@ function InlineStepChecklist({
   onComplete: (value: Record<string, string>) => void;
 }) {
   const fields = step.actionConfig?.fields || [];
-  const isSimpleStep = fields.length === 0;
+  const isOneClickStep = fields.length === 0 && step.completionMode !== "date";
   const requiredReady = Boolean(value.date) && fields.filter((field) => field.required).every((field) => Boolean(value[field.key]?.trim()));
   const confirmed = value.confirmed === "true";
   const update = (key: string, nextValue: string) => onChange({ ...value, [key]: nextValue });
   const stateIcon = (complete: boolean) => <span className={`grid size-6 shrink-0 place-items-center rounded-full border ${complete ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-400"}`}>{complete ? <Check size={12} strokeWidth={3}/> : <CircleDashed size={12}/>}</span>;
 
-  if (isSimpleStep) {
+  if (isOneClickStep) {
     return <div className="space-y-2.5">
-      <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex min-w-0 flex-1 items-center gap-2.5">
-            {stateIcon(Boolean(value.date))}
-            <span className="min-w-0 flex-1"><span className="text-[11px] font-black text-slate-700">Fecha de realización</span><input type="date" required className="field-input mt-1 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
-          </label>
-          <button type="button" disabled={!requiredReady} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><ShieldCheck size={15}/>{requiredReady ? "Confirmar etapa" : "Selecciona la fecha"}</button>
-        </div>
-      </div>
-      <p className="text-[10px] leading-4 text-slate-500">Al confirmar, el paso quedará cerrado y no podrá modificarse.</p>
+      <button type="button" onClick={(event) => { event.stopPropagation(); onComplete({ ...value, date: new Date().toISOString().slice(0, 10) }); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-700"><ShieldCheck size={15}/>Confirmar que completé este paso</button>
+      <p className="text-center text-[10px] leading-4 text-slate-500">Registraremos automáticamente la fecha y hora. Después de confirmar, el paso no podrá modificarse.</p>
     </div>;
   }
 

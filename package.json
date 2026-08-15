@@ -14,6 +14,8 @@
     "db:check": "drizzle-kit check",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx database/seed.ts",
+    "db:audit:routes": "tsx scripts/audit-procedure-routes.ts",
+    "db:revise:routes": "tsx scripts/revise-procedure-routes.ts",
     "db:seed:visa-b1b2": "tsx scripts/seed-us-visa-b1b2.ts",
     "db:repair:advisor-encoding": "tsx scripts/repair-advisor-text-encoding.ts",
     "admin:assign": "tsx scripts/assign-role.ts",
