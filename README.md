@@ -116,7 +116,7 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
-La versión 0.10.0 incorpora el cierre robusto del autoguiado, checklists más compactos, carga optimizada de fotografías, verificación automática del correo y reglas telefónicas compartidas entre registro, perfil y API. Administración también permite renovar de forma segura la contraseña de un asesor y cerrar sus sesiones anteriores. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
+La versión 0.10.1 mejora el portal del asesor, distingue los requisitos previos completados por el ciudadano y expone la capacidad, disponibilidad y tarifa profesional con etiquetas claras. La portada también reemplaza el acceso rápido de matrimonio por el trámite real de Visa Americana. Consulta el historial completo en [CHANGELOG.md](CHANGELOG.md).
 
 ### Requisitos
 

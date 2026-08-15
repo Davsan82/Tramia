@@ -5,9 +5,13 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  Gauge,
   LoaderCircle,
   RefreshCw,
   Save,
+  ShieldCheck,
   Star,
   Upload,
 } from "lucide-react";
@@ -40,11 +44,21 @@ type Detail = {
     notes?: string | null;
     completedAt?: string | null;
   }>;
-  requirements: Array<{
+  /** Contrato legado; la vista vigente usa prerequisites como fuente de preparación. */
+  requirements?: Array<{
     id: string;
     status: string;
     name: string;
     isRequired: boolean;
+  }>;
+  prerequisites: Array<{
+    id: string;
+    procedureStepId: string;
+    title: string;
+    description: string;
+    status: "completed" | "pending_citizen";
+    completedAt?: string | null;
+    completedBy: "citizen";
   }>;
 };
 const labels: Record<string, string> = {
@@ -59,7 +73,9 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
   const [profile, setProfile] = useState<any>(null),
     [editing, setEditing] = useState(false),
     [profileForm, setProfileForm] = useState<any>({}),
-    [uploadingAvatar, setUploadingAvatar] = useState(false);
+    [uploadingAvatar, setUploadingAvatar] = useState(false),
+    [savingProfile, setSavingProfile] = useState(false),
+    [profileNotice, setProfileNotice] = useState("");
   const [cases, setCases] = useState<CaseItem[]>([]),
     [detail, setDetail] = useState<Detail | null>(null),
     [loading, setLoading] = useState(true),
@@ -96,6 +112,8 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
     else setError(p.message || "No pudimos abrir el caso.");
   };
   const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileNotice("");
     const r = await fetch("/api/v1/advisor/profile", {
         method: "PATCH",
         credentials: "include",
@@ -105,8 +123,17 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
       p = await r.json().catch(() => ({}));
     if (r.ok) {
       setProfile({ ...profile, ...p.data });
+      setProfileForm((current: any) => ({ ...current, ...p.data }));
       setEditing(false);
+      setProfileNotice("Tus datos profesionales se actualizaron correctamente.");
+      setError("");
     } else setError(p.message || "No pudimos guardar el perfil.");
+    setSavingProfile(false);
+  };
+  const toggleProfileEditor = () => {
+    if (editing) setProfileForm(profile || {});
+    setProfileNotice("");
+    setEditing((current) => !current);
   };
   const uploadAvatar = async (file?: File) => {
     if (!file) return;
@@ -170,78 +197,24 @@ export default function AdvisorPortalView({ onExit }: { onExit: () => void }) {
           </p>
         </div>
         <button
-          onClick={() => setEditing(!editing)}
-          className="rounded-xl bg-violet-100 px-4 py-2 text-xs font-black text-violet-800"
+          onClick={toggleProfileEditor}
+          className="inline-flex min-h-10 items-center justify-center rounded-xl bg-violet-100 px-4 py-2 text-xs font-black text-violet-800 transition hover:bg-violet-200"
         >
-          {editing ? "Cancelar" : "Editar perfil profesional"}
+          {editing ? "Cancelar edición" : "Actualizar mis datos"}
         </button>
       </div>
+      {profileNotice && <div className="mt-4 flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800"><CheckCircle2 size={16}/>{profileNotice}</div>}
       {editing && (
-        <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
-          <input
-            className="field-input"
-            value={profileForm.publicName || ""}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, publicName: e.target.value })
-            }
-            placeholder="Nombre público"
-          />
-          <select
-            className="field-input"
-            value={profileForm.availabilityStatus || "offline"}
-            onChange={(e) =>
-              setProfileForm({
-                ...profileForm,
-                availabilityStatus: e.target.value,
-              })
-            }
-          >
-            <option value="available">Disponible</option>
-            <option value="busy">Ocupado</option>
-            <option value="offline">Fuera de línea</option>
-          </select>
-          <textarea
-            className="field-input min-h-24 sm:col-span-2"
-            value={profileForm.bio || ""}
-            onChange={(e) =>
-              setProfileForm({ ...profileForm, bio: e.target.value })
-            }
-            placeholder="Presentación profesional"
-          />
-          <input
-            className="field-input"
-            type="number"
-            min="1"
-            max="50"
-            value={profileForm.maxActiveCases || 10}
-            onChange={(e) =>
-              setProfileForm({
-                ...profileForm,
-                maxActiveCases: Number(e.target.value),
-              })
-            }
-            placeholder="Capacidad máxima"
-          />
-          <input
-            className="field-input"
-            type="number"
-            min="0"
-            value={(profileForm.baseFeeMinor || 0) / 100}
-            onChange={(e) =>
-              setProfileForm({
-                ...profileForm,
-                baseFeeMinor: Math.round(Number(e.target.value) * 100),
-              })
-            }
-            placeholder="Tarifa en soles"
-          />
-          <button
-            onClick={() => void saveProfile()}
-            className="min-h-11 rounded-xl bg-violet-700 font-black text-white sm:col-span-2"
-          >
-            <Save className="mr-2 inline" size={16} />
-            Guardar perfil
-          </button>
+        <div className="mt-5 border-t border-slate-100 pt-5">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-violet-700">Configuración profesional</p><h3 className="mt-1 text-lg font-black text-slate-950">Actualiza cómo trabajas en TramIA</h3><p className="mt-1 text-xs leading-5 text-slate-500">Estos datos ayudan a asignarte trámites según tu disponibilidad y capacidad.</p></div><div className="rounded-2xl bg-violet-50 px-4 py-2 text-xs font-bold text-violet-800">{profile.activeCasesCount || 0} de {profile.maxActiveCases || 0} casos activos</div></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-black text-slate-700">Nombre profesional visible<input className="field-input mt-2" value={profileForm.publicName || ""} onChange={(e) => setProfileForm({ ...profileForm, publicName: e.target.value })} placeholder="Nombre que verán los ciudadanos"/></label>
+            <label className="block text-xs font-black text-slate-700">Disponibilidad<select className="field-input mt-2" value={profileForm.availabilityStatus || "offline"} onChange={(e) => setProfileForm({ ...profileForm, availabilityStatus: e.target.value })}><option value="available">Disponible para nuevos casos</option><option value="busy">Ocupado temporalmente</option><option value="offline">Fuera de línea</option></select><span className="mt-1.5 block text-[10px] font-medium leading-4 text-slate-500">Solo los asesores disponibles pueden recibir nuevas asignaciones.</span></label>
+            <label className="block text-xs font-black text-slate-700 sm:col-span-2">Presentación profesional<textarea className="field-input mt-2 min-h-24" value={profileForm.bio || ""} onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })} placeholder="Describe tu experiencia y los trámites en los que te especializas."/><span className="mt-1.5 block text-right text-[10px] font-medium text-slate-400">{String(profileForm.bio || "").length}/2000</span></label>
+            <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><span className="flex items-center gap-2 text-xs font-black text-slate-800"><Gauge size={17} className="text-blue-600"/>Capacidad máxima de casos activos</span><div className="mt-3 flex items-center gap-3"><input className="field-input min-w-0 flex-1 bg-white" type="number" min="1" max="50" value={profileForm.maxActiveCases ?? 10} onChange={(e) => setProfileForm({ ...profileForm, maxActiveCases: Number(e.target.value) })}/><span className="shrink-0 text-xs font-bold text-slate-500">casos</span></div><span className="mt-2 block text-[10px] leading-4 text-slate-500">Al alcanzar este límite dejarás de aparecer temporalmente como disponible.</span></label>
+            <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><span className="flex items-center gap-2 text-xs font-black text-slate-800"><CircleDollarSign size={17} className="text-emerald-600"/>Tarifa base por delegación</span><div className="mt-3 flex items-center gap-3"><span className="text-sm font-black text-slate-600">S/</span><input className="field-input min-w-0 flex-1 bg-white" type="number" min="0" step="0.01" value={(profileForm.baseFeeMinor ?? 0) / 100} onChange={(e) => setProfileForm({ ...profileForm, baseFeeMinor: Math.round(Number(e.target.value) * 100) })}/></div><span className="mt-2 block text-[10px] leading-4 text-slate-500">Monto referencial mostrado al ciudadano antes de confirmar la delegación.</span></label>
+          </div>
+          <div className="mt-5 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end"><button onClick={toggleProfileEditor} className="min-h-11 rounded-xl border border-slate-200 px-5 text-xs font-black text-slate-600 hover:bg-slate-50">Descartar cambios</button><button onClick={() => void saveProfile()} disabled={savingProfile} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-700 px-6 font-black text-white shadow-lg shadow-violet-200 transition hover:bg-violet-800 disabled:opacity-60"><Save className="mr-2" size={16}/>{savingProfile ? "Guardando…" : "Guardar cambios"}</button></div>
         </div>
       )}
     </section>
@@ -486,7 +459,7 @@ function CaseDetail({
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <h3 className="font-black">Requisitos</h3>
             <div className="mt-3 space-y-2">
-              {data.requirements.map((item) => (
+              {(data.requirements || []).map((item) => (
                 <div
                   key={item.id}
                   className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-xs"
@@ -511,7 +484,8 @@ function AdvisorCaseDetail({ data, onBack, onSaved }: { data: Detail; onBack: ()
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const nextStep = data.steps.find((step) => !["completed", "skipped"].includes(step.status));
+  const prerequisiteStepIds = new Set((data.prerequisites || []).map((item) => item.procedureStepId));
+  const nextStep = data.steps.find((step) => !prerequisiteStepIds.has(step.procedureStepId) && !["completed", "skipped"].includes(step.status));
   const completedCount = data.steps.filter((step) => ["completed", "skipped"].includes(step.status)).length;
   const progress = data.steps.length ? Math.round(completedCount / data.steps.length * 100) : data.case.progressPercentage;
   const save = async () => {
@@ -534,7 +508,13 @@ function AdvisorCaseDetail({ data, onBack, onSaved }: { data: Detail; onBack: ()
       </div>
       <aside className="space-y-5">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Acción del asesor</p><h3 className="mt-2 text-lg font-black">{nextStep?`Completar paso ${nextStep.position}`:"Gestión completada"}</h3>{nextStep&&<><p className="mt-2 text-sm leading-6 text-slate-600">{nextStep.title}. Al confirmar, el ciudadano verá el avance y recibirá un aviso por correo.</p><label className="mt-4 block text-xs font-black text-slate-600">Nota para el ciudadano (opcional)<textarea value={notes} onChange={event=>setNotes(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border border-slate-200 p-3" placeholder="Indica qué se realizó o cuál es la siguiente instrucción."/></label>{error&&<p className="mt-3 text-xs font-bold text-red-600">{error}</p>}<button onClick={()=>void save()} disabled={saving} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-black text-white disabled:opacity-50"><CheckCircle2 size={17}/>{saving?"Confirmando…":"Marcar paso como completado"}</button></>}{!nextStep&&<div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-center text-sm font-bold text-emerald-800"><CheckCircle2 className="mx-auto mb-2"/>El ciudadano ya fue informado de que su trámite está listo.</div>}</div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-5"><h3 className="font-black">Requisitos del trámite</h3><div className="mt-3 space-y-2">{data.requirements.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-xs"><span className="font-bold">{item.name}</span><span className="rounded-full bg-white px-2 py-1 font-black text-blue-700">{item.status}</span></div>)}</div></div>
+        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><ShieldCheck size={20}/></span>
+            <div><p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Preparación del ciudadano</p><h3 className="mt-1 font-black">Requisitos previos completados</h3><p className="mt-1 text-xs leading-5 text-slate-500">Esta información fue completada por el ciudadano antes de elegirte y confirmar el pago. No requiere una nueva acción de tu parte.</p></div>
+          </div>
+          <div className="mt-4 space-y-2">{(data.prerequisites || []).map(item=>{const completed=item.status==="completed";return <div key={item.id} className={`flex items-center gap-3 rounded-2xl border p-3 ${completed?"border-emerald-100 bg-emerald-50":"border-amber-200 bg-amber-50"}`}><span className={`grid size-7 shrink-0 place-items-center rounded-full ${completed?"bg-emerald-500 text-white":"bg-amber-100 text-amber-700"}`}>{completed?<CheckCircle2 size={16}/>:<Clock3 size={15}/>}</span><div className="min-w-0 flex-1"><p className="text-xs font-black text-slate-900">{item.title}</p><p className={`mt-0.5 text-[10px] font-bold ${completed?"text-emerald-700":"text-amber-700"}`}>{completed?"Completado por el ciudadano":"Pendiente de regularización por el ciudadano"}</p></div></div>})}{!(data.prerequisites || []).length&&<p className="rounded-2xl bg-slate-50 p-4 text-center text-xs text-slate-500">Este trámite no registra requisitos previos de delegación.</p>}</div>
+        </div>
         <CaseDocuments caseId={data.case.id} role="advisor"/><CaseMessages caseId={data.case.id}/>
       </aside>
     </div>

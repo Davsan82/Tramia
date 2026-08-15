@@ -99,6 +99,7 @@ const testimonialSection = {
 
 function quickLabel(procedure: Procedure) {
   const title = procedure.title.toLowerCase();
+  if (title.includes('visa') && (title.includes('ee. uu') || title.includes('americana'))) return 'Visa Americana';
   if (title.includes('dni')) return 'DNI electrónico';
   if (title.includes('pasaporte')) return 'Pasaporte';
   if (title.includes('ruc')) return 'Obtener RUC';
@@ -138,7 +139,18 @@ export default function HomeView({
 
   const quickProcedures = useMemo(() => {
     const prioritized = popularProcedures.length ? popularProcedures : procedures;
-    return prioritized.slice(0, 6);
+    const quick = prioritized.slice(0, 6);
+    const marriageIndex = quick.findIndex((procedure) => procedure.title.toLowerCase().includes('matrimonio'));
+    const americanVisa = procedures.find((procedure) => {
+      const title = procedure.title.toLowerCase();
+      return title.includes('visa') && (title.includes('ee. uu') || title.includes('americana'));
+    });
+
+    if (marriageIndex >= 0 && americanVisa && !quick.some((procedure) => procedure.id === americanVisa.id)) {
+      quick[marriageIndex] = americanVisa;
+    }
+
+    return quick;
   }, [popularProcedures, procedures]);
   const currentProcedure = activeProcedures[0];
 

@@ -7,6 +7,23 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-14
+
+### Mejorado
+
+- Perfil profesional del asesor con disponibilidad, capacidad máxima, tarifa base, estados de guardado y distribución responsive.
+- Presentación de los requisitos previos de delegación como actividades completadas por el ciudadano, sin solicitar una segunda validación al asesor.
+- Acceso rápido de la portada actualizado de Matrimonio civil a Visa Americana, enlazado con el trámite real del catálogo.
+
+### Corregido
+
+- Selección del siguiente paso del asesor para excluir las actividades previas que corresponden al ciudadano.
+- Contrato de la API del asesor para devolver configuración profesional y fechas de finalización de los prerrequisitos.
+
+### Verificado
+
+- TypeScript y build de producción finalizan correctamente.
+
 ## [0.10.0] - 2026-08-14
 
 ### Agregado
@@ -349,7 +366,8 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/Davsan82/Tramia/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Davsan82/Tramia/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Davsan82/Tramia/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Davsan82/Tramia/compare/v0.8.0...v0.8.1
