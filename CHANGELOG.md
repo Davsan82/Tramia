@@ -7,6 +7,31 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-14
+
+### Agregado
+
+- Cambio seguro de contraseña de asesores desde el panel administrativo, con cierre de sesiones anteriores y registro de auditoría.
+- Ventana responsive para cargar, arrastrar, previsualizar y optimizar fotografías de perfil antes de guardarlas.
+- Reglas telefónicas compartidas por país para el registro, el perfil y la API.
+
+### Mejorado
+
+- Verificación automática del correo al abrir el enlace, con pantalla de confirmación y acceso directo a Mi perfil.
+- Recuperación visual para enlaces de correo vencidos o inválidos, incluyendo la solicitud de un nuevo enlace.
+- Distribución de los datos de contacto, prefijo numérico visible y selectores de ubicación con mayor espacio responsive.
+- Checklist de autogestión más compacto, con formularios simples y estados cerrados de lectura rápida.
+
+### Corregido
+
+- Cierre idempotente del último paso de una autogestión para evitar el mensaje incorrecto de que el trámite ya no admite cambios.
+- Apertura inicial de los checklists completados y cálculo del siguiente paso después de guardar una etapa.
+- Actualización inmediata de la fotografía de perfil y manejo visible de archivos pesados o no compatibles.
+
+### Verificado
+
+- TypeScript, Drizzle, control de secretos, codificación UTF-8 y build de producción finalizan correctamente.
+
 ## [0.9.0] - 2026-08-14
 
 ### Agregado
@@ -324,7 +349,8 @@ y el proyecto utiliza [Versionado Semántico](https://semver.org/lang/es/).
 - Verificación automática de tipos y build de producción.
 - Automatización de releases de GitHub mediante tags SemVer.
 
-[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Davsan82/Tramia/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Davsan82/Tramia/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Davsan82/Tramia/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Davsan82/Tramia/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Davsan82/Tramia/compare/v0.7.0...v0.8.0

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, AtSign, Check, Eye, EyeOff, Lock, Mail, Phone, S
 import type { UserProfile } from '../types';
 import TramIALogo from './TramIALogo';
 import { trackEvent } from '../utils/analytics';
+import { getPhoneCountry, isValidPhone, PHONE_COUNTRIES, phoneLengthMessage } from '../../shared/phone';
 
 type Mode = 'login' | 'signup' | 'forgot';
 interface LoginViewProps { onAuthSuccess: (profile: UserProfile) => void; onClose?: () => void; initialMode?: Mode; adminMode?: boolean; }
@@ -12,7 +13,7 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
-  const [form, setForm] = useState({ username: '', email: '', password: '', phone: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', phonePrefix: '+51', phoneNumber: '' });
 
   useEffect(() => { setMode(initialMode); setMessage(null); }, [initialMode]);
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm((value) => ({ ...value, [key]: event.target.value }));
@@ -20,6 +21,8 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setMessage(null); setSubmitting(true);
     try {
+      if (mode === 'signup' && !isValidPhone(form.phonePrefix, form.phoneNumber))
+        throw new Error(phoneLengthMessage(form.phonePrefix));
       const endpoint = mode === 'signup' ? '/api/v1/auth/register' : mode === 'forgot' ? '/api/v1/auth/forgot-password' : '/api/v1/auth/login';
       const body = mode === 'login' ? { identifier: form.email, password: form.password } : mode === 'forgot' ? { email: form.email } : form;
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
@@ -34,6 +37,7 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
   }
 
   const isSignup = mode === 'signup';
+  const selectedPhoneCountry = getPhoneCountry(form.phonePrefix);
   return (
     <div className={`relative grid w-full overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-[0_30px_100px_rgba(4,22,61,.28)] animate-fadeIn md:grid-cols-[.84fr_1.16fr] ${isSignup ? 'max-w-5xl' : 'max-w-4xl'}`}>
       {onClose && <button type="button" onClick={onClose} aria-label="Cerrar" className="absolute right-4 top-4 z-30 grid size-10 place-items-center rounded-full bg-white/90 text-slate-500 shadow-sm transition hover:text-slate-950"><X size={18} /></button>}
@@ -62,7 +66,7 @@ export default function LoginView({ onAuthSuccess, onClose, initialMode = 'login
           {isSignup && <Field label="Nombre de usuario" icon={AtSign}><input value={form.username} onChange={update('username')} required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" autoComplete="username" placeholder="ej. david82" className="field-input" /></Field>}
           <Field label={mode === 'login' ? 'Usuario o correo' : 'Correo electrónico'} icon={Mail}><input type={mode === 'login' ? 'text' : 'email'} value={form.email} onChange={update('email')} required autoComplete="email" placeholder={mode === 'login' ? 'usuario o correo@ejemplo.com' : 'correo@ejemplo.com'} className="field-input" /></Field>
           {mode !== 'forgot' && <Field label="Contraseña" icon={Lock} action={mode === 'login' ? <button type="button" onClick={() => { setMode('forgot'); setMessage(null); }} className="text-xs font-bold text-blue-700 hover:underline">¿La olvidaste?</button> : undefined}><div className="relative"><input type={showPassword ? 'text' : 'password'} value={form.password} onChange={update('password')} required minLength={8} autoComplete={isSignup ? 'new-password' : 'current-password'} placeholder="Mínimo 8 caracteres" className="field-input pr-11" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-700">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></Field>}
-          {isSignup && <Field label="Celular" icon={Phone}><input type="tel" value={form.phone} onChange={update('phone')} required placeholder="+51 999 999 999" className="field-input" /></Field>}
+          {isSignup && <Field label="Celular" icon={Phone}><div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3"><select value={form.phonePrefix} onChange={(event) => setForm((value) => ({ ...value, phonePrefix: event.target.value, phoneNumber: '' }))} required aria-label="País y prefijo telefónico" className="field-input field-select text-center font-black text-blue-700">{PHONE_COUNTRIES.map((country) => <option key={country.prefix} value={country.prefix} title={country.country}>{country.prefix}</option>)}</select><input type="tel" inputMode="numeric" pattern="[0-9]*" minLength={selectedPhoneCountry?.minLength} maxLength={selectedPhoneCountry?.maxLength || 15} autoComplete="tel-national" value={form.phoneNumber} onChange={(event) => setForm((value) => ({ ...value, phoneNumber: event.target.value.replace(/\D/g, '').slice(0, selectedPhoneCountry?.maxLength || 15) }))} required placeholder="999 999 999" aria-label="Número de celular" className="field-input" /></div><span className="mt-1.5 block text-[10px] font-medium text-slate-500">{selectedPhoneCountry ? `${selectedPhoneCountry.country}: ${selectedPhoneCountry.minLength === selectedPhoneCountry.maxLength ? `${selectedPhoneCountry.minLength} dígitos` : `${selectedPhoneCountry.minLength} a ${selectedPhoneCountry.maxLength} dígitos`}.` : 'Selecciona un prefijo válido.'}</span></Field>}
           {isSignup && <div className="flex gap-3 rounded-2xl bg-blue-50 p-4 text-xs leading-5 text-blue-900"><ShieldCheck size={19} className="shrink-0 text-blue-600" /><p>Podrás ingresar inmediatamente. Te mostraremos un recordatorio hasta que confirmes el enlace enviado a tu correo.</p></div>}
           {message && <div role="alert" className={`rounded-xl border p-3 text-sm font-semibold ${message.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{message.text}</div>}
           <button disabled={submitting} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold text-white shadow-lg transition disabled:opacity-60 ${adminMode ? 'bg-violet-700 shadow-violet-700/20 hover:bg-violet-800' : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'}`}>{submitting ? 'Procesando…' : adminMode ? 'Ingresar al panel' : mode === 'login' ? 'Ingresar a TramIA' : mode === 'signup' ? 'Crear cuenta y continuar' : 'Enviar enlace seguro'} {!submitting && <ArrowRight size={17} />}</button>

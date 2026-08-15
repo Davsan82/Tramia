@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   BadgeCheck,
   Building2,
+  Camera,
   CalendarDays,
   CheckCircle2,
   CreditCard,
@@ -19,11 +20,13 @@ import {
   Trash2,
   Upload,
   UserRound,
+  X,
 } from "lucide-react";
 import { UserProfile } from "../types";
 import TramIALogo from "./TramIALogo";
 import PaymentBrandLogo, { paymentBrandName, paymentBrandTheme } from "./PaymentBrandLogo";
 import { Department, District, loadUbigeo, Province } from "../services/ubigeo";
+import { isValidPhone, PHONE_COUNTRIES, phoneLengthMessage, splitStoredPhone } from "../../shared/phone";
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -31,33 +34,35 @@ interface ProfileViewProps {
 }
 type Notice = { type: "success" | "error"; text: string } | null;
 
-const PHONE_COUNTRIES = [
-  { country: "Perú", prefix: "+51", minLength: 9, maxLength: 9 },
-  { country: "Argentina", prefix: "+54", minLength: 10, maxLength: 10 },
-  { country: "Bolivia", prefix: "+591", minLength: 8, maxLength: 8 },
-  { country: "Brasil", prefix: "+55", minLength: 10, maxLength: 11 },
-  { country: "Chile", prefix: "+56", minLength: 9, maxLength: 9 },
-  { country: "Colombia", prefix: "+57", minLength: 10, maxLength: 10 },
-  { country: "Ecuador", prefix: "+593", minLength: 9, maxLength: 9 },
-  { country: "EE. UU. / Canadá", prefix: "+1", minLength: 10, maxLength: 10 },
-  { country: "México", prefix: "+52", minLength: 10, maxLength: 10 },
-  { country: "Paraguay", prefix: "+595", minLength: 9, maxLength: 9 },
-  { country: "Uruguay", prefix: "+598", minLength: 8, maxLength: 8 },
-  { country: "Venezuela", prefix: "+58", minLength: 10, maxLength: 10 },
-  { country: "España", prefix: "+34", minLength: 9, maxLength: 9 },
-] as const;
+const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const AVATAR_MAX_SOURCE_SIZE = 12 * 1024 * 1024;
+const AVATAR_MAX_UPLOAD_SIZE = 3 * 1024 * 1024;
 
-function splitStoredPhone(value: string) {
-  const compact = value.trim().replace(/[^\d+]/g, "");
-  const country = [...PHONE_COUNTRIES]
-    .sort((a, b) => b.prefix.length - a.prefix.length)
-    .find((item) => compact.startsWith(item.prefix));
-  if (!country)
-    return { phonePrefix: "+51", phoneNumber: compact.replace(/\D/g, "").slice(0, 15) };
-  return {
-    phonePrefix: country.prefix,
-    phoneNumber: compact.slice(country.prefix.length).replace(/\D/g, "").slice(0, 15),
-  };
+async function prepareAvatar(file: File) {
+  if (!AVATAR_ACCEPTED_TYPES.includes(file.type))
+    throw new Error("Selecciona una foto JPG, PNG o WebP.");
+  if (!file.size || file.size > AVATAR_MAX_SOURCE_SIZE)
+    throw new Error("La foto original debe pesar como máximo 12 MB.");
+  if (file.size <= AVATAR_MAX_UPLOAD_SIZE) return file;
+
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("No pudimos preparar la foto en este dispositivo.");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  for (const quality of [0.88, 0.78, 0.68]) {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", quality),
+    );
+    if (blob && blob.size <= AVATAR_MAX_UPLOAD_SIZE)
+      return new File([blob], "foto-perfil.webp", { type: "image/webp" });
+  }
+  throw new Error("No pudimos reducir la foto. Prueba con una imagen más liviana.");
 }
 
 export default function ProfileView({
@@ -87,7 +92,12 @@ export default function ProfileView({
     [payments, setPayments] = useState<any[]>([]),
     [updatingMethodId, setUpdatingMethodId] = useState<string | null>(null),
     [uploading, setUploading] = useState(false),
+    [avatarModalOpen, setAvatarModalOpen] = useState(false),
+    [avatarFile, setAvatarFile] = useState<File | null>(null),
+    [avatarPreview, setAvatarPreview] = useState(""),
+    [avatarNotice, setAvatarNotice] = useState<Notice>(null),
     [reputation, setReputation] = useState({ average: "0", count: 0 });
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const isIdentityVerified = profile.identityVerificationStatus === "verified";
 
   useEffect(
@@ -117,6 +127,9 @@ export default function ProfileView({
         }),
       );
   }, []);
+  useEffect(() => () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+  }, [avatarPreview]);
   const updateContact =
     (key: keyof typeof contact) =>
     (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -145,33 +158,62 @@ export default function ProfileView({
       .then((payload) => setReputation(payload.reputation || { average: "0", count: 0 }))
       .catch(() => {});
   }, [profile.id]);
-  async function uploadAvatar(file?: File) {
+  function chooseAvatar(file?: File) {
+    setAvatarNotice(null);
     if (!file) return;
+    if (!AVATAR_ACCEPTED_TYPES.includes(file.type)) {
+      setAvatarNotice({ type: "error", text: "Selecciona una foto JPG, PNG o WebP." });
+      return;
+    }
+    if (!file.size || file.size > AVATAR_MAX_SOURCE_SIZE) {
+      setAvatarNotice({ type: "error", text: "La foto original debe pesar como máximo 12 MB." });
+      return;
+    }
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  }
+  function closeAvatarModal(force = false) {
+    if (uploading && !force) return;
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview("");
+    setAvatarFile(null);
+    setAvatarNotice(null);
+    setAvatarModalOpen(false);
+  }
+  async function uploadAvatar() {
+    if (!avatarFile || uploading) return;
     setUploading(true);
-    const contentBase64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    const response = await fetch("/api/v1/profile/avatar", {
+    setAvatarNotice(null);
+    try {
+      const preparedFile = await prepareAvatar(avatarFile);
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("No pudimos leer la foto seleccionada."));
+        reader.readAsDataURL(preparedFile);
+      });
+      const response = await fetch("/api/v1/profile/avatar", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mimeType: file.type, contentBase64 }),
-      }),
-      result = await response.json().catch(() => ({}));
-    if (response.ok)
+        body: JSON.stringify({ mimeType: preparedFile.type, contentBase64 }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "No pudimos subir la foto.");
       onUpdateProfile({
         ...profile,
         avatarUrl: `${result.avatarUrl}?v=${Date.now()}`,
       });
-    else
-      setIdentityNotice({
+      closeAvatarModal(true);
+    } catch (error) {
+      setAvatarNotice({
         type: "error",
-        text: result.message || "No pudimos subir la foto.",
+        text: error instanceof Error ? error.message : "No pudimos subir la foto.",
       });
-    setUploading(false);
+    } finally {
+      setUploading(false);
+    }
   }
   async function addMethod(brand: string) {
     const r = await fetch("/api/v1/payment-methods/simulated", {
@@ -223,21 +265,8 @@ export default function ProfileView({
     setSaving(true);
     setContactNotice(null);
     try {
-      const selectedCountry = PHONE_COUNTRIES.find(
-        (country) => country.prefix === contact.phonePrefix,
-      );
-      if (
-        !selectedCountry ||
-        contact.phoneNumber.length < selectedCountry.minLength ||
-        contact.phoneNumber.length > selectedCountry.maxLength
-      ) {
-        const expectedLength = selectedCountry
-          ? selectedCountry.minLength === selectedCountry.maxLength
-            ? `${selectedCountry.minLength} dígitos`
-            : `entre ${selectedCountry.minLength} y ${selectedCountry.maxLength} dígitos`
-          : "una longitud válida";
-        throw new Error(`Ingresa un celular de ${expectedLength} para el país seleccionado.`);
-      }
+      if (!isValidPhone(contact.phonePrefix, contact.phoneNumber))
+        throw new Error(phoneLengthMessage(contact.phonePrefix));
       const response = await fetch("/api/v1/profile", {
         method: "PATCH",
         credentials: "include",
@@ -349,19 +378,85 @@ export default function ProfileView({
                 </span>
               )}
             </div>
-            <label className="cursor-pointer rounded-xl bg-white/15 px-3 py-2 text-xs font-black backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setAvatarModalOpen(true)}
+              className="rounded-xl bg-white/15 px-3 py-2 text-xs font-black backdrop-blur transition hover:bg-white/25"
+            >
               <Upload className="mr-1 inline" size={14} />
-              {uploading ? "Subiendo…" : "Cambiar foto"}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => void uploadAvatar(e.target.files?.[0])}
-              />
-            </label>
+              Cambiar foto
+            </button>
           </div>
         </div>
       </section>
+
+      {avatarModalOpen && (
+        <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-sm">
+          <section className="relative w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl">
+            <div className="h-1.5 bg-gradient-to-r from-blue-700 via-blue-500 to-cyan-400" />
+            <button
+              type="button"
+              onClick={closeAvatarModal}
+              disabled={uploading}
+              aria-label="Cerrar"
+              className="absolute right-5 top-5 grid size-10 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 disabled:opacity-40"
+            >
+              <X size={18} />
+            </button>
+            <div className="p-6 sm:p-8">
+              <span className="grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+                <Camera size={23} />
+              </span>
+              <p className="mt-5 text-[11px] font-black uppercase tracking-[.18em] text-blue-600">Foto de perfil</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">Actualiza tu foto</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">Usa una imagen clara de tu rostro. TramIA la optimizará antes de guardarla.</p>
+
+              <div
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  chooseAvatar(event.dataTransfer.files?.[0]);
+                }}
+                className={`mt-6 grid min-h-60 place-items-center rounded-3xl border-2 border-dashed p-5 text-center transition ${avatarPreview ? "border-blue-200 bg-blue-50/50" : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50/40"}`}
+              >
+                {avatarPreview ? (
+                  <div>
+                    <img src={avatarPreview} alt="Vista previa de la foto" className="mx-auto size-36 rounded-full border-4 border-white object-cover shadow-lg" />
+                    <p className="mt-3 max-w-xs truncate text-sm font-black text-slate-900">{avatarFile?.name}</p>
+                    <button type="button" onClick={() => avatarInputRef.current?.click()} className="mt-2 text-xs font-black text-blue-600">Elegir otra foto</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => avatarInputRef.current?.click()} className="group">
+                    <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-white text-blue-600 shadow-sm transition group-hover:-translate-y-0.5">
+                      <Upload size={24} />
+                    </span>
+                    <strong className="mt-4 block text-sm text-slate-900">Arrastra tu foto aquí o selecciónala</strong>
+                    <span className="mt-1 block text-xs text-slate-500">JPG, PNG o WebP · hasta 12 MB</span>
+                  </button>
+                )}
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    chooseAvatar(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </div>
+
+              {avatarNotice && <NoticeBox notice={avatarNotice} />}
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={closeAvatarModal} disabled={uploading} className="min-h-12 rounded-xl bg-slate-100 px-5 text-sm font-black text-slate-700 disabled:opacity-40">Cancelar</button>
+                <button type="button" onClick={() => void uploadAvatar()} disabled={!avatarFile || uploading} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-40">
+                  {uploading ? <><LoaderCircle className="animate-spin" size={17}/>Guardando foto…</> : <><Upload size={17}/>Guardar foto</>}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className="rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -377,7 +472,7 @@ export default function ProfileView({
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1.08fr_.92fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.28fr_.72fr]">
         <form
           onSubmit={saveContact}
           className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-7"
@@ -387,11 +482,11 @@ export default function ProfileView({
             title="Datos de contacto"
             description="Puedes actualizar estos datos cuando lo necesites."
           />
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 space-y-5">
             <Field label="Celular" icon={Phone}>
-              <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] gap-2">
+              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
                 <select
-                  className="field-input field-select"
+                  className="field-input field-select text-center font-black text-blue-700"
                   required
                   value={contact.phonePrefix}
                   onChange={(event) =>
@@ -404,8 +499,8 @@ export default function ProfileView({
                   aria-label="País y prefijo telefónico"
                 >
                   {PHONE_COUNTRIES.map((country) => (
-                    <option key={country.prefix} value={country.prefix}>
-                      {country.country} ({country.prefix})
+                    <option key={country.prefix} value={country.prefix} title={country.country}>
+                      {country.prefix}
                     </option>
                   ))}
                 </select>
@@ -429,82 +524,82 @@ export default function ProfileView({
                 />
               </div>
             </Field>
-            <Field label="Departamento" icon={MapPin}>
-              <select
-                className="field-input field-select"
-                required
-                value={contact.department}
-                onChange={(event) =>
-                  setContact((value) => ({
-                    ...value,
-                    department: event.target.value,
-                    province: "",
-                    district: "",
-                  }))
-                }
-              >
-                <option value="">Selecciona</option>
-                {departments.map((item) => (
-                  <option key={item.ubigeo} value={item.departamento}>
-                    {formatPlace(item.departamento)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Provincia" icon={Building2}>
-              <select
-                className="field-input field-select"
-                required
-                disabled={!selectedDepartment}
-                value={contact.province}
-                onChange={(event) =>
-                  setContact((value) => ({
-                    ...value,
-                    province: event.target.value,
-                    district: "",
-                  }))
-                }
-              >
-                <option value="">Selecciona</option>
-                {availableProvinces.map((item) => (
-                  <option key={item.ubigeo} value={item.provincia}>
-                    {formatPlace(item.provincia)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Distrito" icon={MapPin}>
-              <select
-                className="field-input field-select"
-                required
-                disabled={!selectedProvince}
-                value={contact.district}
-                onChange={(event) =>
-                  setContact((value) => ({
-                    ...value,
-                    district: event.target.value,
-                  }))
-                }
-              >
-                <option value="">Selecciona</option>
-                {availableDistricts.map((item) => (
-                  <option key={item.ubigeo} value={item.distrito}>
-                    {formatPlace(item.distrito)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Dirección" icon={MapPin}>
-                <input
-                  className="field-input"
+            <div className="grid gap-4 md:grid-cols-3">
+              <Field label="Departamento" icon={MapPin}>
+                <select
+                  className="field-input field-select"
                   required
-                  value={contact.address}
-                  onChange={updateContact("address")}
-                  placeholder="Av., calle, número y referencia"
-                />
+                  value={contact.department}
+                  onChange={(event) =>
+                    setContact((value) => ({
+                      ...value,
+                      department: event.target.value,
+                      province: "",
+                      district: "",
+                    }))
+                  }
+                >
+                  <option value="">Selecciona</option>
+                  {departments.map((item) => (
+                    <option key={item.ubigeo} value={item.departamento}>
+                      {formatPlace(item.departamento)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Provincia" icon={Building2}>
+                <select
+                  className="field-input field-select"
+                  required
+                  disabled={!selectedDepartment}
+                  value={contact.province}
+                  onChange={(event) =>
+                    setContact((value) => ({
+                      ...value,
+                      province: event.target.value,
+                      district: "",
+                    }))
+                  }
+                >
+                  <option value="">Selecciona</option>
+                  {availableProvinces.map((item) => (
+                    <option key={item.ubigeo} value={item.provincia}>
+                      {formatPlace(item.provincia)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Distrito" icon={MapPin}>
+                <select
+                  className="field-input field-select"
+                  required
+                  disabled={!selectedProvince}
+                  value={contact.district}
+                  onChange={(event) =>
+                    setContact((value) => ({
+                      ...value,
+                      district: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Selecciona</option>
+                  {availableDistricts.map((item) => (
+                    <option key={item.ubigeo} value={item.distrito}>
+                      {formatPlace(item.distrito)}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
+            <Field label="Dirección" icon={MapPin}>
+              <input
+                className="field-input"
+                required
+                value={contact.address}
+                onChange={updateContact("address")}
+                placeholder="Av., calle, número y referencia"
+              />
+            </Field>
           </div>
           <NoticeBox notice={contactNotice} />
           <button

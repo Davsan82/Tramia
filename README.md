@@ -15,10 +15,10 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 - Catálogo de trámites, categorías, requisitos y pasos consultado desde Neon.
 - Búsqueda por texto y filtros por categoría.
 - Fichas informativas con fuente oficial, tiempos, costos referenciales y dificultad.
-- Registro con usuario, correo, contraseña y celular.
+- Registro con usuario, correo, contraseña y celular validado por prefijo y longitud del país.
 - Inicio y cierre de sesión mediante cookie segura `HttpOnly`.
 - Cierre automático luego de 15 minutos de inactividad.
-- Verificación de correo mediante enlaces de uso único.
+- Verificación automática de correo mediante enlaces de uso único, con recuperación cuando vencen o son inválidos.
 - Recuperación de acceso sin bloquear la contraseña vigente hasta confirmar el cambio.
 - Perfil persistente y validación de DNI mediante PeruDevs desde el servidor.
 - Departamentos, provincias y distritos en selectores dependientes.
@@ -36,7 +36,7 @@ TramIA es actualmente un MVP en desarrollo. No representa ni está afiliada ofic
 
 ### Persistencia operativa
 
-- Fotos de perfil e identidad verificada para clientes y asesores.
+- Fotos de perfil con selección, arrastre, vista previa y optimización para clientes y asesores.
 - Configuración pública editable para canales de atención.
 - Pasos accionables con fechas, formularios, archivos y cierre irreversible confirmado.
 - Medios de pago de prueba exclusivamente ficticios y tokenizados; no se almacena PAN ni CVV.
@@ -116,7 +116,7 @@ El catálogo, usuarios, perfiles, sesiones, tokens, mensajes y trámites del usu
 
 > **Solo para desarrollo:** `npm run admin:create-local` crea la cuenta temporal `admin / 12345678`. Es deliberadamente insegura, está bloqueada cuando `NODE_ENV=production` y debe eliminarse antes del lanzamiento público. Nunca debe utilizarse como credencial real.
 
-La versión 0.9.0 incorpora el seguimiento completo de trámites delegados: el asesor actualiza los pasos en secuencia, el ciudadano consulta el avance y conversa con su especialista, y cada pago confirmado genera una boleta descargable. También mejora la configuración de contacto, el celular con prefijo internacional y el ingreso directo al perfil después del registro. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
+La versión 0.10.0 incorpora el cierre robusto del autoguiado, checklists más compactos, carga optimizada de fotografías, verificación automática del correo y reglas telefónicas compartidas entre registro, perfil y API. Administración también permite renovar de forma segura la contraseña de un asesor y cerrar sus sesiones anteriores. Consulta la [auditoría funcional](docs/AUDITORIA_FLUJO_VISA_2026-08-14.md).
 
 ### Requisitos
 

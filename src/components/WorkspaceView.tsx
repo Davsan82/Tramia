@@ -268,9 +268,15 @@ export default function WorkspaceView({
     setCompletedStepDetails((value) => ({ ...value, [targetStep.id]: { ...targetData, completedAt: new Date().toISOString() } }));
     setRequirements((items) => items.map((item) => item.requiredForStepId === targetStep.id ? { ...item, status: "Aprobado", isValidated: true } : item));
     setInlineStepData((value) => { const next = { ...value }; delete next[targetStep.id]; return next; });
+    const nextCompletedIds = new Set([...completedStepIds, targetStep.id]);
     const currentIndex = procedure.steps.findIndex((item) => item.id === targetStep.id);
-    const nextStep = procedure.steps.slice(currentIndex + 1).find((item) => !completedStepIds.includes(item.id));
-    if (nextStep) setExpandedStepId(nextStep.id);
+    const nextStep = procedure.steps.slice(currentIndex + 1).find((item) => !nextCompletedIds.has(item.id));
+    setExpandedStepId(nextStep?.id || null);
+    if (payload.status === "completed" || payload.percentage === 100) {
+      window.setTimeout(() => {
+        document.getElementById("workspace-view-top")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+    }
     setActionStep(null);
     setActionData({});
   };
@@ -343,7 +349,9 @@ export default function WorkspaceView({
         return response.json();
       })
       .then((payload) => {
-        setCompletedStepIds(Array.isArray(payload.completedStepIds) ? payload.completedStepIds : []);
+        const persistedCompletedIds = Array.isArray(payload.completedStepIds) ? payload.completedStepIds : [];
+        setCompletedStepIds(persistedCompletedIds);
+        if (persistedCompletedIds.length >= procedure.steps.length) setExpandedStepId(null);
         setCompletedStepDetails(Object.fromEntries((payload.steps || []).filter((item: any) => item.status === "completed").map((item: any) => [item.procedureStepId, { ...(item.completionData || {}), completedAt: item.completedAt }])));
         const requirementState = new Map((payload.requirements || []).map((item: any) => [item.requirementId, item]));
         const labels: Record<string, Requirement["status"]> = { approved: "Aprobado", rejected: "Corregir", uploaded: "Validando", validating: "Validando", pending: "Pendiente" };
@@ -353,7 +361,7 @@ export default function WorkspaceView({
         }));
       })
       .catch(() => {});
-  }, [caseId]);
+  }, [caseId, procedure.steps.length]);
 
   // Active expanded step state (accordion functionality)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(() => {
@@ -995,7 +1003,12 @@ export default function WorkspaceView({
 
                       {/* Action Area (Compact Upload zone or Manual Check) */}
                       <div>
-                        {isEvidenceStep ? (
+                        {isStepDone ? (
+                          <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2.5 text-xs text-emerald-800">
+                            <CheckCircle2 size={17} className="shrink-0" />
+                            <p><strong>Etapa cerrada.</strong> La información quedó registrada el {formatRecordedDate(completionDetail?.date || completionDetail?.completedAt)}.</p>
+                          </div>
+                        ) : isEvidenceStep ? (
                           <div className="mt-1">
                             {!isStepDone ||
                             (stepReq && stepReq.status === "Corregir") ? (
@@ -1651,57 +1664,54 @@ function InlineStepChecklist({
   const requiredReady = Boolean(value.date) && fields.filter((field) => field.required).every((field) => Boolean(value[field.key]?.trim()));
   const confirmed = value.confirmed === "true";
   const update = (key: string, nextValue: string) => onChange({ ...value, [key]: nextValue });
-  const stateIcon = (complete: boolean) => <span className={`grid size-8 shrink-0 place-items-center rounded-full border-2 ${complete ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-400"}`}>{complete ? <Check size={15} strokeWidth={3}/> : <CircleDashed size={15}/>}</span>;
+  const stateIcon = (complete: boolean) => <span className={`grid size-6 shrink-0 place-items-center rounded-full border ${complete ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-400"}`}>{complete ? <Check size={12} strokeWidth={3}/> : <CircleDashed size={12}/>}</span>;
 
   if (isSimpleStep) {
-    return <div className="space-y-3">
-      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Confirmación rápida</p><p className="mt-0.5 text-[11px] text-slate-500">Selecciona la fecha en que terminaste este paso.</p></div>
-
-      <div className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/35">
-        <div className="p-3 sm:p-4">
-          <label className="flex min-w-0 items-center gap-3">
+    return <div className="space-y-2.5">
+      <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex min-w-0 flex-1 items-center gap-2.5">
             {stateIcon(Boolean(value.date))}
-            <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-1.5 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
+            <span className="min-w-0 flex-1"><span className="text-[11px] font-black text-slate-700">Fecha de realización</span><input type="date" required className="field-input mt-1 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
           </label>
+          <button type="button" disabled={!requiredReady} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><ShieldCheck size={15}/>{requiredReady ? "Confirmar etapa" : "Selecciona la fecha"}</button>
         </div>
       </div>
-
-      <button type="button" disabled={!requiredReady} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={16}/>{requiredReady ? "Confirmar etapa" : "Selecciona la fecha de realización"}</button>
-      <p className="text-center text-[10px] leading-4 text-slate-500">Al confirmar, este paso quedará cerrado y ya no se podrá modificar.</p>
+      <p className="text-[10px] leading-4 text-slate-500">Al confirmar, el paso quedará cerrado y no podrá modificarse.</p>
     </div>;
   }
 
   return <div className="space-y-3">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Datos de la etapa</p><p className="mt-1 text-xs text-slate-500">Completa cada punto y confirma cuando todo esté listo.</p></div>
-      <button type="button" onClick={(event) => { event.stopPropagation(); onOpenModal(); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 text-[11px] font-black text-blue-700 transition hover:bg-blue-50"><MousePointerClick size={15}/>Completar en una ventana</button>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-[10px] font-black uppercase tracking-[.14em] text-blue-600">Datos de la etapa</p>
+      <button type="button" onClick={(event) => { event.stopPropagation(); onOpenModal(); }} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-[10px] font-black text-blue-700 transition hover:bg-blue-50"><MousePointerClick size={13}/>Abrir formulario</button>
     </div>
 
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <label className="flex items-start gap-3 border-b border-slate-100 p-4">
+    <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2">
+      <label className="flex items-start gap-2.5 border-b border-slate-100 p-3 sm:border-r">
         {stateIcon(Boolean(value.date))}
-        <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
+        <span className="min-w-0 flex-1"><span className="text-[11px] font-black text-slate-800">Fecha de realización <span className="text-red-500">*</span></span><input type="date" required className="field-input mt-1.5 min-h-10 py-2" value={value.date || ""} onChange={(event) => update("date", event.target.value)}/></span>
       </label>
 
       {fields.map((field) => {
         const complete = Boolean(value[field.key]?.trim());
-        return <label key={field.key} className="flex items-start gap-3 border-b border-slate-100 p-4">
+        return <label key={field.key} className="flex items-start gap-2.5 border-b border-slate-100 p-3 sm:border-r">
           {stateIcon(complete)}
-          <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">{field.label}{field.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 font-medium text-slate-400">(opcional)</span>}</span>{field.type === "select" ? <select required={field.required} className="field-input mt-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}><option value="">Selecciona una opción</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select> : <input type={field.type || "text"} required={field.required} className="field-input mt-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}/>}</span>
+          <span className="min-w-0 flex-1"><span className="text-[11px] font-black text-slate-800">{field.label}{field.required ? <span className="ml-1 text-red-500">*</span> : <span className="ml-1 font-medium text-slate-400">(opcional)</span>}</span>{field.type === "select" ? <select required={field.required} className="field-input mt-1.5 min-h-10 py-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}><option value="">Selecciona una opción</option>{field.options?.map((option) => <option key={option}>{option}</option>)}</select> : <input type={field.type || "text"} required={field.required} className="field-input mt-1.5 min-h-10 py-2" value={value[field.key] || ""} onChange={(event) => update(field.key, event.target.value)}/>}</span>
         </label>;
       })}
 
-      <label className="flex items-start gap-3 border-b border-slate-100 p-4">
+      <label className="flex items-start gap-2.5 border-b border-slate-100 p-3 sm:col-span-2">
         {stateIcon(Boolean(value.notes?.trim()))}
-        <span className="min-w-0 flex-1"><span className="text-xs font-black text-slate-900">Información o referencia <span className="font-medium text-slate-400">(opcional)</span></span><textarea className="field-input mt-2 min-h-20 resize-y" placeholder="Nota, número de referencia o detalle que quieras recordar." value={value.notes || ""} onChange={(event) => update("notes", event.target.value)}/></span>
+        <span className="min-w-0 flex-1"><span className="text-[11px] font-black text-slate-800">Información o referencia <span className="font-medium text-slate-400">(opcional)</span></span><input className="field-input mt-1.5 min-h-10 py-2" placeholder="Nota o número de referencia" value={value.notes || ""} onChange={(event) => update("notes", event.target.value)}/></span>
       </label>
 
-      <label className={`flex cursor-pointer items-start gap-3 p-4 transition ${confirmed ? "bg-emerald-50" : "bg-amber-50/70"}`}>
-        <input type="checkbox" checked={confirmed} onChange={(event) => update("confirmed", event.target.checked ? "true" : "")} className="mt-1 size-4 shrink-0 accent-blue-600"/>
-        <span><strong className="text-xs text-slate-900">Confirmo que completé esta etapa</strong><span className="mt-1 block text-[11px] leading-4 text-slate-600">Después de guardarla quedará cerrada y no se podrá modificar.</span></span>
+      <label className={`flex cursor-pointer items-center gap-2.5 p-3 transition sm:col-span-2 ${confirmed ? "bg-emerald-50" : "bg-amber-50/60"}`}>
+        <input type="checkbox" checked={confirmed} onChange={(event) => update("confirmed", event.target.checked ? "true" : "")} className="size-4 shrink-0 accent-blue-600"/>
+        <span className="text-[11px] text-slate-700"><strong className="text-slate-900">Confirmo que terminé.</strong> El paso quedará cerrado.</span>
       </label>
     </div>
 
-    <button type="button" disabled={!requiredReady || !confirmed} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"><ShieldCheck size={17}/>{requiredReady ? confirmed ? "Guardar y completar paso" : "Confirma que completaste la etapa" : "Completa los datos obligatorios"}</button>
+    <button type="button" disabled={!requiredReady || !confirmed} onClick={(event) => { event.stopPropagation(); onComplete(value); }} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><ShieldCheck size={15}/>{requiredReady ? confirmed ? "Guardar y completar" : "Confirma que terminaste" : "Completa los datos obligatorios"}</button>
   </div>;
 }

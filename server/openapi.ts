@@ -2,7 +2,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'TramIA API',
-    version: '0.9.0',
+    version: '0.10.0',
     description: 'API pública versionada para el catálogo y los futuros expedientes de TramIA.',
   },
   servers: [
@@ -18,12 +18,14 @@ export const openApiDocument = {
     { name: 'Notificaciones' },
     { name: 'Perfiles' },
     { name: 'Configuración' },
+    { name: 'Administración' },
     { name: 'Pagos simulados' },
   ],
   paths: {
     '/v1/payments/{id}/receipt.pdf': { get:{tags:['Pagos simulados'],summary:'Descargar la boleta de venta de un pago confirmado',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Comprobante PDF'},'404':{description:'Pago no encontrado'},'409':{description:'Pago todavía no confirmado'}}} },
     '/v1/my-procedures/{id}/delegated-tracking': { get:{tags:['Gestiones'],summary:'Consultar el avance de solo lectura de una gestión delegada',responses:{'200':{description:'Caso, asesor asignado y secuencia de pasos'},'409':{description:'Delegación sin pago confirmado'}}} },
     '/v1/advisor/cases/{id}/steps/{stepInstanceId}/complete': { post:{tags:['Asesores'],summary:'Completar en orden el siguiente paso de una gestión delegada',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}},{name:'stepInstanceId',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Avance actualizado y ciudadano notificado'},'409':{description:'Existe un paso anterior pendiente'}}} },
+    '/v1/admin/advisors/{id}/password': { patch:{tags:['Administración'],summary:'Cambiar la contraseña de un asesor y cerrar sus sesiones',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Contraseña actualizada'},'400':{description:'Contraseña no válida'},'404':{description:'Asesor no encontrado'}}} },
     '/v1/payment-methods': { get:{tags:['Pagos simulados'],summary:'Listar medios de pago ficticios tokenizados',responses:{'200':{description:'Tarjetas simuladas sin PAN ni CVV'}}} },
     '/v1/payment-methods/simulated': { post:{tags:['Pagos simulados'],summary:'Crear una tarjeta completamente ficticia',responses:{'201':{description:'Token simulado creado'}}} },
     '/v1/payment-methods/{id}/default': { patch:{tags:['Pagos simulados'],summary:'Definir tarjeta ficticia predeterminada',responses:{'200':{description:'Preferencia actualizada'}}} },
